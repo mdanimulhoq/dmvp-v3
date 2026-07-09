@@ -100,7 +100,6 @@ model Evidence {
   sha256Original                    String             @map("sha256_original") @db.Char(64)
   canonicalMediaHash                String?            @map("canonical_media_hash") @db.Char(64)
 
-  // Canonical Evidence Envelope fields
   robustFingerprintProfile          Json               @map("robust_fingerprint_profile")
   fingerprintAlgorithmVersions      Json               @map("fingerprint_algorithm_versions")
   signerDeviceKeyId                 String             @map("signer_device_key_id") @db.VarChar(191)
@@ -119,7 +118,6 @@ model Evidence {
   auditReference                    String             @unique @map("audit_reference") @db.VarChar(191)
   signature                         String             @db.Text
 
-  // Search / verification support fields
   perceptualHash                    String?            @map("perceptual_hash") @db.VarChar(128)
   fingerprintPrimary                String?            @map("fingerprint_primary") @db.VarChar(191)
   fingerprintSearchTokens           Json?              @map("fingerprint_search_tokens")
@@ -130,7 +128,6 @@ model Evidence {
   frameRate                         Decimal?           @map("frame_rate") @db.Decimal(8, 3)
   transformHints                    Json?              @map("transform_hints")
 
-  // Operational fields
   status                            EvidenceStatus     @default(ACTIVE)
   requestId                         String?            @map("request_id") @db.VarChar(191)
   idempotencyKey                    String?            @map("idempotency_key") @db.VarChar(191)
@@ -269,6 +266,9 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+// ═══════════════════════════════════════════════════════
+// NEW: User model for JWT authentication
+// ═══════════════════════════════════════════════════════
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
@@ -276,4 +276,6 @@ model User {
   name          String?
   created_at    DateTime @default(now())
   updated_at    DateTime @updatedAt
+
+  @@map("users")
 }
