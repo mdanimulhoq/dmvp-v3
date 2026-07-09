@@ -1,21 +1,27 @@
 /**
- * @file src/middleware/auth.js
- * @description User/account authentication and authorization middleware
- * for the DMVP v3.0 backend API.
+ * @file src/middleware/signatureVerify.js
+ * @description Device-signature verification and replay-protection
+ * middleware for the DMVP v3.0 backend API.
  *
- * This module handles bearer-token (JWT) based user authorization, as
- * distinct from the per-request cryptographic signature verification
- * performed by `src/middleware/signatureVerify.js` for device-signed
- * write operations. Authentication here answers "which account is
- * making this call", while signature verification answers "did the
- * registered device actually sign this evidence payload".
+ * This module verifies that critical write requests (evidence
+ * registration, device lifecycle transitions, etc.) were actually signed
+ * by the private key held in the requesting device's secure hardware
+ * boundary, per TDD v3.0 sections 5.3 and 6.3, and SRS FR-CR-04/FR-CR-05.
  *
- * Exposes:
- *  - `authenticate`         - requires a valid bearer token, 401 otherwise
- *  - `optionalAuthenticate` - attaches req.user if a valid token is
- *                             present, but never rejects the request
- *  - `requireRole(...roles)` - role-based access control, 403 if the
- *                             authenticated account lacks an allowed role
+ * Responsibilities:
+ *  - deterministic canonical serialization of the signed payload
+ *    (stable key ordering, so client and server always sign/verify the
+ *    same bytes regardless of JSON key order on the wire)
+ *  - ECDSA (SHA256withECDSA / P-256) signature verification against the
+ *    device's registered public key
+ *  - nonce-bound replay protection with a bounded expiration window
+ *  - device trust-state checks (must not be REVOKED) before accepting
+ *    a signed write
+ *
+ * This module is intentionally separate from `src/middleware/auth.js`:
+ * `auth.js` answers "which account is calling", while this module
+ * answers "did the claimed device really sign this exact payload,
+ * exactly once".
  *
  * All failures use the DMVP structured error envelope:
  *
@@ -30,34 +36,84 @@
 
 'use strict';
 
-const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const { prisma } = require('../config/database');
 
-/** Expected JWT issuer, configurable per deployment environment. */
-const TOKEN_ISSUER = process.env.JWT_ISSUER || 'dmvp-registry';
+/** Header carrying the Base64-encoded request signature. */
+const SIGNATURE_HEADER = 'x-dmvp-signature';
 
-/** Expected JWT audience, configurable per deployment environment. */
-const TOKEN_AUDIENCE = process.env.JWT_AUDIENCE || 'dmvp-api';
+/** Header carrying the single-use nonce bound to this signed request. */
+const NONCE_HEADER = 'x-dmvp-nonce';
 
-/** Allowed signing algorithms. Restricted to prevent alg-confusion attacks. */
-const ALLOWED_ALGORITHMS = ['HS256'];
+/** Header carrying the ISO-8601 timestamp the client signed against. */
+const TIMESTAMP_HEADER = 'x-dmvp-timestamp';
+
+/** Header carrying the device key identifier that produced the signature. */
+const DEVICE_KEY_ID_HEADER = 'x-dmvp-device-key-id';
 
 /**
- * Roles recognized by the DMVP authorization model. Individual tokens
- * may carry a subset of these in their `roles` claim.
- *
- * @readonly
- * @enum {string}
+ * Maximum allowed clock skew between the client-claimed signing
+ * timestamp and server time, in either direction. Requests outside this
+ * window are rejected as stale or as potential replay/clock-forgery
+ * attempts, per SRS NFR-SC-02.
  */
-const ROLES = Object.freeze({
-  USER: 'user',
-  ENTERPRISE: 'enterprise',
-  ADMIN: 'admin',
-  AUDITOR: 'auditor',
-});
+const REPLAY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+/**
+ * In-memory nonce cache used for replay protection.
+ *
+ * Maps `${deviceKeyId}:${nonce}` -> expiry epoch millis. Entries are
+ * swept lazily on each check and periodically via `setInterval`.
+ *
+ * NOTE: this in-memory store is correct for a single backend instance.
+ * A horizontally-scaled deployment must replace this with a shared
+ * store (e.g. Redis `SET key val NX PX <window>`) that provides atomic
+ * "insert if absent" semantics across instances. The public interface
+ * (`checkAndConsumeNonce`) is isolated below specifically to make that
+ * swap a one-function change.
+ *
+ * @type {Map<string, number>}
+ */
+const nonceCache = new Map();
+
+/** Periodic sweep interval for expired nonce cache entries. */
+const NONCE_SWEEP_INTERVAL_MS = 60 * 1000;
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, expiresAt] of nonceCache.entries()) {
+    if (expiresAt <= now) {
+      nonceCache.delete(key);
+    }
+  }
+}, NONCE_SWEEP_INTERVAL_MS).unref();
+
+/**
+ * Atomically check whether a nonce has already been consumed for a
+ * given device, and if not, record it as consumed for the duration of
+ * the replay window.
+ *
+ * @param {string} deviceKeyId
+ * @param {string} nonce
+ * @returns {boolean} true if the nonce was fresh and is now consumed;
+ *   false if the nonce was already seen (i.e. a replay).
+ */
+function checkAndConsumeNonce(deviceKeyId, nonce) {
+  const key = `${deviceKeyId}:${nonce}`;
+  const now = Date.now();
+
+  const existingExpiry = nonceCache.get(key);
+  if (existingExpiry && existingExpiry > now) {
+    return false;
+  }
+
+  nonceCache.set(key, now + REPLAY_WINDOW_MS);
+  return true;
+}
 
 /* ------------------------------------------------------------------ *
- * Shared helpers (mirrors conventions in rateLimit.js / validation.js)
+ * Shared helpers (mirrors conventions in rateLimit.js / validation.js /
+ * auth.js)
  * ------------------------------------------------------------------ */
 
 /**
@@ -85,16 +141,23 @@ function resolveRequestId(req) {
 }
 
 /**
- * Send a structured authentication/authorization error response.
+ * Send a structured signature-verification error response.
  *
  * @param {import('express').Response} res
  * @param {import('express').Request} req
- * @param {number} statusCode - HTTP status code (401 or 403)
- * @param {string} errorCode - Machine-readable error code
- * @param {string} message - Human-readable message
- * @param {object} [detail] - Optional additional detail object
+ * @param {number} statusCode
+ * @param {string} errorCode
+ * @param {string} message
+ * @param {object} [detail]
  */
-function sendAuthError(res, req, statusCode, errorCode, message, detail = {}) {
+function sendSignatureError(
+  res,
+  req,
+  statusCode,
+  errorCode,
+  message,
+  detail = {}
+) {
   res.status(statusCode).json({
     error_code: errorCode,
     message,
@@ -104,227 +167,278 @@ function sendAuthError(res, req, statusCode, errorCode, message, detail = {}) {
   });
 }
 
-/**
- * Extract a bearer token from the request's `Authorization` header.
- *
- * @param {import('express').Request} req
- * @returns {string | null} the raw token, or null if not present/malformed
- */
-function extractBearerToken(req) {
-  const header = req.headers['authorization'];
-  if (typeof header !== 'string') {
-    return null;
-  }
-
-  const match = header.match(/^Bearer\s+(.+)$/i);
-  if (!match) {
-    return null;
-  }
-
-  const token = match[1].trim();
-  return token.length > 0 ? token : null;
-}
-
-/**
- * Verify a JWT and normalize its payload into the shape attached to
- * `req.user`.
- *
- * @param {string} token - Raw JWT string.
- * @returns {{ accountId: string, roles: string[], claims: object }}
- * @throws {jwt.JsonWebTokenError | jwt.TokenExpiredError | jwt.NotBeforeError}
- */
-function verifyToken(token) {
-  const secret = process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error(
-      'JWT_SECRET is not configured; cannot verify authentication tokens'
-    );
-  }
-
-  const payload = jwt.verify(token, secret, {
-    algorithms: ALLOWED_ALGORITHMS,
-    issuer: TOKEN_ISSUER,
-    audience: TOKEN_AUDIENCE,
-  });
-
-  const accountId = payload.sub;
-  const roles = Array.isArray(payload.roles) ? payload.roles : [ROLES.USER];
-
-  return { accountId, roles, claims: payload };
-}
-
-/**
- * Translate a JWT verification failure into the appropriate DMVP
- * structured error response.
- *
- * @param {import('express').Response} res
- * @param {import('express').Request} req
- * @param {Error} err
- */
-function respondWithTokenError(res, req, err) {
-  if (err instanceof jwt.TokenExpiredError) {
-    sendAuthError(
-      res,
-      req,
-      401,
-      'AUTH_TOKEN_EXPIRED',
-      'The provided authentication token has expired.',
-      { expired_at: err.expiredAt }
-    );
-    return;
-  }
-
-  if (err instanceof jwt.NotBeforeError) {
-    sendAuthError(
-      res,
-      req,
-      401,
-      'AUTH_TOKEN_NOT_ACTIVE',
-      'The provided authentication token is not yet active.'
-    );
-    return;
-  }
-
-  if (err instanceof jwt.JsonWebTokenError) {
-    sendAuthError(
-      res,
-      req,
-      401,
-      'AUTH_INVALID_TOKEN',
-      'The provided authentication token is invalid.'
-    );
-    return;
-  }
-
-  // Configuration or unexpected errors should not leak internals to
-  // the client, but must still fail closed.
-  sendAuthError(
-    res,
-    req,
-    401,
-    'AUTH_VERIFICATION_FAILED',
-    'Authentication could not be completed.'
-  );
-}
-
 /* ------------------------------------------------------------------ *
- * Middleware
+ * Canonical serialization
  * ------------------------------------------------------------------ */
 
 /**
- * Require a valid bearer token on the request. On success, attaches
- * `req.user = { accountId, roles, claims }` and calls `next()`.
- * On failure, responds with 401 and a structured error envelope.
+ * Recursively sort object keys and rebuild arrays/objects so that
+ * `JSON.stringify` of the result is byte-stable regardless of the
+ * original key insertion order. Matches the "canonical JSON" profile
+ * referenced in TDD v3.0 section 5.3.
  *
- * @param {import('express').Request} req
- * @param {import('express').Response} res
- * @param {import('express').NextFunction} next
+ * @param {*} value
+ * @returns {*} a structurally identical value with deterministic key order
  */
-function authenticate(req, res, next) {
-  const token = extractBearerToken(req);
-
-  if (!token) {
-    sendAuthError(
-      res,
-      req,
-      401,
-      'AUTH_MISSING_TOKEN',
-      'This endpoint requires a valid bearer token in the Authorization header.'
-    );
-    return;
+function canonicalizeValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeValue);
   }
 
+  if (value !== null && typeof value === 'object') {
+    const sortedKeys = Object.keys(value).sort();
+    const result = {};
+    for (const key of sortedKeys) {
+      result[key] = canonicalizeValue(value[key]);
+    }
+    return result;
+  }
+
+  return value;
+}
+
+/**
+ * Produce the canonical, deterministic byte representation of a payload
+ * that clients sign and the server verifies against.
+ *
+ * The `signature` field itself (if present) is always excluded, since
+ * a signature cannot cover itself.
+ *
+ * @param {object} payload - The evidence envelope or request body to
+ *   canonicalize.
+ * @returns {Buffer} UTF-8 encoded canonical JSON bytes
+ */
+function canonicalSerialize(payload) {
+  const { signature, ...unsigned } = payload || {};
+  const canonical = canonicalizeValue(unsigned);
+  return Buffer.from(JSON.stringify(canonical), 'utf8');
+}
+
+/* ------------------------------------------------------------------ *
+ * Signature verification
+ * ------------------------------------------------------------------ */
+
+/**
+ * Verify a Base64-encoded ECDSA (SHA-256 / P-256) signature over the
+ * canonical bytes of a payload, using the device's registered public
+ * key (SPKI PEM format).
+ *
+ * @param {Buffer} canonicalBytes - Output of `canonicalSerialize`.
+ * @param {string} signatureBase64 - Base64-encoded DER signature.
+ * @param {string} publicKeyPem - Device public key in SPKI PEM format.
+ * @returns {boolean} true if the signature is valid for the given payload
+ */
+function verifyEcdsaSignature(canonicalBytes, signatureBase64, publicKeyPem) {
   try {
-    req.user = verifyToken(token);
-    next();
+    const signatureBytes = Buffer.from(signatureBase64, 'base64');
+    const verifier = crypto.createVerify('SHA256');
+    verifier.update(canonicalBytes);
+    verifier.end();
+    return verifier.verify(publicKeyPem, signatureBytes);
   } catch (err) {
-    respondWithTokenError(res, req, err);
+    // Malformed key material or signature bytes are treated as an
+    // invalid signature rather than a server error.
+    return false;
   }
 }
 
 /**
- * Attach `req.user` when a valid bearer token is present, but never
- * rejects the request. Useful for endpoints (e.g. public evidence
- * lookup) whose response may vary by permission level without being
- * strictly gated behind authentication.
+ * Validate that a claimed signing timestamp falls within the allowed
+ * replay window relative to server time.
  *
- * A malformed or expired token is treated the same as no token: the
- * request proceeds with `req.user` left undefined.
+ * @param {string} timestampHeaderValue - ISO-8601 timestamp string.
+ * @returns {{ valid: boolean, reason?: string }}
+ */
+function validateTimestamp(timestampHeaderValue) {
+  const claimedMs = Date.parse(timestampHeaderValue);
+
+  if (Number.isNaN(claimedMs)) {
+    return { valid: false, reason: 'not a valid ISO-8601 timestamp' };
+  }
+
+  const nowMs = Date.now();
+  const skew = Math.abs(nowMs - claimedMs);
+
+  if (skew > REPLAY_WINDOW_MS) {
+    return {
+      valid: false,
+      reason: `timestamp is outside the ${
+        REPLAY_WINDOW_MS / 1000
+      }-second replay window`,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * Load the device's current key record and verify its trust state
+ * permits accepting new signed writes.
+ *
+ * @param {string} deviceKeyId
+ * @returns {Promise<{ ok: true, device: object } | { ok: false, errorCode: string, message: string }>}
+ */
+async function loadTrustedDevice(deviceKeyId) {
+  const device = await prisma.deviceKey.findUnique({
+    where: { deviceKeyId },
+  });
+
+  if (!device) {
+    return {
+      ok: false,
+      errorCode: 'DEVICE_NOT_FOUND',
+      message: 'No registered device matches the claimed device key id.',
+    };
+  }
+
+  if (device.trustTier === 'TIER_D' || device.status === 'REVOKED') {
+    return {
+      ok: false,
+      errorCode: 'DEVICE_REVOKED',
+      message: 'This device key has been revoked and cannot sign new writes.',
+    };
+  }
+
+  return { ok: true, device };
+}
+
+/**
+ * Express middleware factory that verifies device signatures and
+ * enforces nonce-bound replay protection on critical write requests.
+ *
+ * Expects the following request headers:
+ *  - `x-dmvp-signature`      Base64-encoded ECDSA signature
+ *  - `x-dmvp-nonce`          Single-use nonce bound to this request
+ *  - `x-dmvp-timestamp`      ISO-8601 timestamp the client signed against
+ *  - `x-dmvp-device-key-id`  Identifier of the signing device key
+ *
+ * The request body (minus any `signature` field) is canonically
+ * serialized and verified against the device's registered public key.
+ *
+ * On success, attaches `req.verifiedDevice = { deviceKeyId, trustTier, ... }`
+ * and calls `next()`. On failure, responds with a structured error and
+ * does not call `next()`.
  *
  * @param {import('express').Request} req
  * @param {import('express').Response} res
  * @param {import('express').NextFunction} next
  */
-function optionalAuthenticate(req, res, next) {
-  const token = extractBearerToken(req);
+async function verifySignature(req, res, next) {
+  const signatureBase64 = req.headers[SIGNATURE_HEADER];
+  const nonce = req.headers[NONCE_HEADER];
+  const timestampHeaderValue = req.headers[TIMESTAMP_HEADER];
+  const deviceKeyId = req.headers[DEVICE_KEY_ID_HEADER];
 
-  if (!token) {
-    next();
+  const missing = [];
+  if (!signatureBase64) missing.push(SIGNATURE_HEADER);
+  if (!nonce) missing.push(NONCE_HEADER);
+  if (!timestampHeaderValue) missing.push(TIMESTAMP_HEADER);
+  if (!deviceKeyId) missing.push(DEVICE_KEY_ID_HEADER);
+
+  if (missing.length > 0) {
+    sendSignatureError(
+      res,
+      req,
+      400,
+      'SIGNATURE_HEADERS_MISSING',
+      'One or more required signature headers are missing from the request.',
+      { missing_headers: missing }
+    );
     return;
   }
 
-  try {
-    req.user = verifyToken(token);
-  } catch (err) {
-    // Silently ignore verification failures for optional auth; the
-    // request is treated as unauthenticated rather than rejected.
-    req.user = undefined;
+  const timestampCheck = validateTimestamp(
+    /** @type {string} */ (timestampHeaderValue)
+  );
+  if (!timestampCheck.valid) {
+    sendSignatureError(
+      res,
+      req,
+      401,
+      'SIGNATURE_TIMESTAMP_INVALID',
+      'The signed request timestamp is invalid or outside the allowed window.',
+      { reason: timestampCheck.reason }
+    );
+    return;
   }
+
+  const nonceIsFresh = checkAndConsumeNonce(
+    /** @type {string} */ (deviceKeyId),
+    /** @type {string} */ (nonce)
+  );
+  if (!nonceIsFresh) {
+    sendSignatureError(
+      res,
+      req,
+      401,
+      'REPLAY_DETECTED',
+      'This request nonce has already been used and cannot be replayed.'
+    );
+    return;
+  }
+
+  let deviceLookup;
+  try {
+    deviceLookup = await loadTrustedDevice(
+      /** @type {string} */ (deviceKeyId)
+    );
+  } catch (err) {
+    sendSignatureError(
+      res,
+      req,
+      500,
+      'SIGNATURE_VERIFICATION_FAILED',
+      'Device trust state could not be evaluated due to an internal error.'
+    );
+    return;
+  }
+
+  if (!deviceLookup.ok) {
+    const statusCode =
+      deviceLookup.errorCode === 'DEVICE_NOT_FOUND' ? 404 : 403;
+    sendSignatureError(
+      res,
+      req,
+      statusCode,
+      deviceLookup.errorCode,
+      deviceLookup.message
+    );
+    return;
+  }
+
+  const { device } = deviceLookup;
+  const canonicalBytes = canonicalSerialize(req.body);
+  const signatureValid = verifyEcdsaSignature(
+    canonicalBytes,
+    /** @type {string} */ (signatureBase64),
+    device.publicKeyPem
+  );
+
+  if (!signatureValid) {
+    sendSignatureError(
+      res,
+      req,
+      401,
+      'INVALID_SIGNATURE',
+      'The request signature does not match the signed payload for the claimed device key.'
+    );
+    return;
+  }
+
+  req.verifiedDevice = {
+    deviceKeyId: device.deviceKeyId,
+    trustTier: device.trustTier,
+    hardwareBacked: device.hardwareBacked,
+    lineageId: device.lineageId,
+  };
 
   next();
 }
 
-/**
- * Build a role-based access control middleware. Must run after
- * `authenticate` (or `optionalAuthenticate` followed by a manual check)
- * so that `req.user` is populated.
- *
- * @param {...string} allowedRoles - One or more roles from `ROLES` that
- *   are permitted to access the guarded route. The authenticated
- *   account must carry at least one matching role.
- * @returns {(req: import('express').Request, res: import('express').Response, next: import('express').NextFunction) => void}
- */
-function requireRole(...allowedRoles) {
-  if (allowedRoles.length === 0) {
-    throw new Error('requireRole() must be called with at least one role');
-  }
-
-  return function roleCheckMiddleware(req, res, next) {
-    if (!req.user) {
-      sendAuthError(
-        res,
-        req,
-        401,
-        'AUTH_MISSING_TOKEN',
-        'This endpoint requires authentication before role checks can be performed.'
-      );
-      return;
-    }
-
-    const accountRoles = Array.isArray(req.user.roles) ? req.user.roles : [];
-    const isAuthorized = accountRoles.some((role) =>
-      allowedRoles.includes(role)
-    );
-
-    if (!isAuthorized) {
-      sendAuthError(
-        res,
-        req,
-        403,
-        'AUTH_INSUFFICIENT_ROLE',
-        'This account does not have permission to access this resource.',
-        { required_roles: allowedRoles, account_roles: accountRoles }
-      );
-      return;
-    }
-
-    next();
-  };
-}
-
 module.exports = {
-  ROLES,
-  authenticate,
-  optionalAuthenticate,
-  requireRole,
+  verifySignature,
+  canonicalSerialize,
+  verifyEcdsaSignature,
+  checkAndConsumeNonce,
+  REPLAY_WINDOW_MS,
 };
