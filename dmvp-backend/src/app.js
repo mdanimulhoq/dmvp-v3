@@ -5,6 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const crypto = require('crypto');
+const rateLimit = require('express-rate-limit'); // ADDED: for backward compatibility
 
 const {
   connectDatabase,
@@ -141,6 +142,41 @@ app.use(express.json({ limit: `${MAX_JSON_BODY_MB}mb` }));
 app.use(express.urlencoded({ extended: true, limit: `${MAX_JSON_BODY_MB}mb` }));
 
 app.use(generalRateLimit);
+
+// ============================================================
+// BACKWARD COMPATIBILITY: rateLimiter() function for route files
+// ============================================================
+// Some route files call rateLimiter({ windowMs, max }) as a function.
+// This wrapper creates an express-rate-limit middleware on the fly.
+function rateLimiter(options = {}) {
+  const windowMs = options.windowMs || 15 * 60 * 1000;
+  const max = options.max || 100;
+
+  return rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => req.ip,
+    skip: (req, res) => req.method === 'OPTIONS' && res.statusCode < 400,
+    handler: (req, res) => {
+      const requestId = req.requestId || 'unknown';
+      const retryAfterSeconds = Math.ceil(windowMs / 1000);
+
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+
+      res.status(429).json({
+        error_code: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many requests. Please slow down and try again later.',
+        detail: {
+          retry_after_seconds: retryAfterSeconds,
+        },
+        policy_version: POLICY_VERSION,
+        request_id: requestId,
+      });
+    },
+  });
+}
 
 app.get('/health', async (req, res) => {
   const dbHealth = await checkDatabaseHealth();
@@ -424,4 +460,5 @@ module.exports = {
   startServer,
   shutdown,
   createAppError,
+  rateLimiter, // ADDED: Export for backward compatibility with route files
 };
