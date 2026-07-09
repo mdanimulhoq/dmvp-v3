@@ -16,7 +16,7 @@ const router = express.Router();
 
 // Middleware
 const { authenticate } = require('../middleware/auth');
-const { rateLimiter } = require('../middleware/rateLimit');
+const { registerRateLimit } = require('../middleware/rateLimit'); // FIXED: use registerRateLimit instead of rateLimiter
 const { validateEvidenceRegistration, validateEvidenceId, validateSha256 } = require('../middleware/validation');
 const { verifyRegistrationSignature } = require('../middleware/signatureVerify');
 
@@ -51,7 +51,7 @@ const logger = console;
 router.post(
   '/',
   authenticate, // Optional: if we have user auth, but registration may be anonymous with device key
-  rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }), // 100 per 15 min
+  registerRateLimit, // FIXED: use registerRateLimit middleware directly
   validateEvidenceRegistration, // Validates the request body structure
   verifyRegistrationSignature, // Verifies the signature and nonce/timestamp
   async (req, res, next) => {
@@ -60,34 +60,20 @@ router.post(
       const idempotencyKey = req.headers['idempotency-key'] || null;
       const actorId = req.user ? req.user.id : null; // If authenticated
 
-      // Additional validation: ensure device key matches the one in signature verification
-      // verifyRegistrationSignature already validated it, but we can double-check
-      // The payload may contain signer_device_key_id, which we used.
-
       const result = await registerEvidence(payload, idempotencyKey, actorId);
 
       // Check if it's a duplicate (existing record returned)
-      // But registerEvidence returns the existing record if duplicate found.
-      // We should return 200 OK for duplicate (idempotent) or 201 Created for new.
-      const status = result.created_at === result.updated_at ? 201 : 200; // crude detection
-      // Better: check if we created new or returned existing. registerEvidence doesn't tell us.
-      // We'll just always return 201, but with the record.
-      // However, to be idempotent, we could return 200 if it already existed.
-      // We'll check if it was newly created by checking if we can detect it from the response.
-      // For simplicity, we'll always return 201 if no duplicate error thrown.
-      // But if duplicate was detected inside the service, it returned the existing record.
-      // We don't have a flag. So we'll just use 201 always.
-      // Alternatively, we can modify the service to return a flag.
-      // For now, assume 201.
-      res.status(201).json(result);
+      const status = result.created_at === result.updated_at ? 201 : 200;
+      res.status(status).json(result);
     } catch (error) {
       // Handle specific errors
       if (error.message && error.message.includes('duplicate')) {
-        // If duplicate detection throws error, we can return 409
         return res.status(409).json({
           error_code: 'DUPLICATE_EVIDENCE',
           message: 'Evidence already exists with same hash and device key',
           detail: error.message,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       if (error.message && error.message.includes('Missing required field')) {
@@ -95,6 +81,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: error.message,
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       // Pass other errors to global error handler
@@ -127,16 +115,18 @@ router.get(
           error_code: 'EVIDENCE_NOT_FOUND',
           message: 'No evidence found with that ID',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
 
       // Filter sensitive fields for public view
-      // We'll return a subset: exclude signature, device_attestation_summary, maybe others.
-      // But for now, we'll return everything except signature and attestation.
       const { signature, device_attestation_summary, ...publicData } = evidence;
-      // Also maybe remove owner_account_id if not the owner.
-      // For now, we return everything except signature and attestation.
-      res.json(publicData);
+      res.json({
+        ...publicData,
+        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+        request_id: req.requestId || 'unknown'
+      });
     } catch (error) {
       next(error);
     }
@@ -167,11 +157,17 @@ router.get(
           error_code: 'EVIDENCE_NOT_FOUND',
           message: 'No evidence found with that SHA-256 hash',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       // Filter sensitive fields as above
       const { signature, device_attestation_summary, ...publicData } = evidence;
-      res.json(publicData);
+      res.json({
+        ...publicData,
+        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+        request_id: req.requestId || 'unknown'
+      });
     } catch (error) {
       next(error);
     }
