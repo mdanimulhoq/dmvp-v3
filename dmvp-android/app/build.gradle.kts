@@ -24,6 +24,13 @@ android {
         versionCode = 1
         versionName = "3.0.0"
 
+        // DMVP Backend API Base URL (Render deployment)
+        buildConfigField(
+            "String",
+            "DMVP_API_BASE_URL",
+            "\"https://dmvp-v3.onrender.com\""
+        )
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
