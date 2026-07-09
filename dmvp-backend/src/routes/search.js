@@ -1,212 +1,288 @@
 /**
- * src/routes/search.js
+ * @file src/routes/search.js
+ * @description DMVP v3.0 — Evidence Search Routes
  *
- * Express routes for evidence search and related evidence retrieval.
  * Endpoints:
- *   POST /search - Search for related or similar evidence (staged matching)
- *   GET /search/{evidence_id}/related - Retrieve related evidence graph/result set
+ *   GET  /search         — Search service info
+ *   POST /search         — Search for related/similar evidence
+ *   GET  /search/:evidenceId/related — Get related evidence
  *
- * All routes enforce authentication, rate limiting, and input validation.
+ * @module routes/search
+ * @version dmvp-v3.0.0
  */
+
+'use strict';
 
 const express = require('express');
 const router = express.Router();
 
-// Middleware — safe require with fallback
-function safeRequire(path, exportName) {
-  try {
-    const mod = require(path);
-    if (exportName && mod[exportName]) return mod[exportName];
-    if (typeof mod === 'function') return mod;
-    return mod;
-  } catch (e) {
-    console.warn(`[search.js] Warning: could not load ${path} — ${e.message}`);
-    return (req, res, next) => next();
-  }
+const { authenticate } = require('../middleware/auth');
+const { generalRateLimit } = require('../middleware/rateLimit');
+const { prisma } = require('../config/database');
+
+const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildError(status, errorCode, message, detail = null, req = null) {
+  return {
+    status,
+    errorCode,
+    message,
+    detail,
+    policy_version: POLICY_VERSION,
+    request_id: req?.requestId || 'unknown',
+  };
 }
 
-// Auth middleware
-const authenticate = safeRequire('../middleware/auth', 'authenticate');
+function isValidSHA256(str) {
+  return typeof str === 'string' && /^[0-9a-f]{64}$/i.test(str);
+}
 
-// Rate limiter — use generalRateLimit from rateLimit.js
-const rateLimitMod = safeRequire('../middleware/rateLimit');
-const generalRateLimit = rateLimitMod.generalRateLimit || ((req, res, next) => next());
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /search
+// Search service info
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Validation
-const validationMod = safeRequire('../middleware/validation');
-const validateEvidenceId = validationMod.validateEvidenceId || ((req, res, next) => next());
+router.get(
+  '/',
+  authenticate,
+  async (req, res) => {
+    return res.status(200).json({
+      service: 'DMVP Search',
+      version: '3.0.0',
+      endpoints: {
+        search: 'POST /',
+        related: 'GET /:evidenceId/related',
+      },
+      policy_version: POLICY_VERSION,
+      request_id: req.requestId,
+    });
+  }
+);
 
-// Service
-const { searchEvidence, getRelatedEvidence } = require('../services/searchService');
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /search
+// Search for related or similar evidence (staged matching)
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Logger
-const logger = console;
-
-/**
- * POST /search
- *
- * Submit a search request.
- */
 router.post(
   '/',
   authenticate,
-  generalRateLimit, // FIXED: use generalRateLimit instead of rateLimiter(...)
+  generalRateLimit,
   async (req, res, next) => {
     try {
-      const body = req.body;
+      const {
+        sha256,
+        canonicalMediaHash,
+        perceptualHash,
+        fingerprintProfile,
+        mediaType,
+        maxResults,
+        maxCandidates,
+      } = req.body;
 
-      // Validate required fields
-      if (!body.sha256 || typeof body.sha256 !== 'string') {
-        return res.status(400).json({
-          error_code: 'VALIDATION_ERROR',
-          message: 'sha256 is required and must be a string',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
-      if (!/^[0-9a-f]{64}$/i.test(body.sha256)) {
-        return res.status(400).json({
-          error_code: 'VALIDATION_ERROR',
-          message: 'sha256 must be a 64-character hex string',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
-      if (!body.media_type || !['image', 'video'].includes(body.media_type)) {
-        return res.status(400).json({
-          error_code: 'VALIDATION_ERROR',
-          message: 'media_type must be "image" or "video"',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
+      // ── Validation ────────────────────────────────────────────────────────
+      if (!sha256 || !isValidSHA256(sha256)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'sha256 must be a 64-character hex string', null, req)
+        );
       }
 
-      // Optional fields validation
-      if (body.canonical_media_hash && !/^[0-9a-f]{64}$/i.test(body.canonical_media_hash)) {
-        return res.status(400).json({
-          error_code: 'VALIDATION_ERROR',
-          message: 'canonical_media_hash must be a 64-character hex string',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
-      if (body.maxResults && (typeof body.maxResults !== 'number' || body.maxResults < 1)) {
-        return res.status(400).json({
-          error_code: 'VALIDATION_ERROR',
-          message: 'maxResults must be a positive number',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
-      if (body.maxCandidates && (typeof body.maxCandidates !== 'number' || body.maxCandidates < 1)) {
-        return res.status(400).json({
-          error_code: 'VALIDATION_ERROR',
-          message: 'maxCandidates must be a positive number',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
+      if (!mediaType || !['IMAGE', 'VIDEO'].includes(mediaType.toUpperCase())) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'mediaType must be IMAGE or VIDEO', null, req)
+        );
       }
 
-      // Prepare request object for service
-      const searchRequest = {
-        sha256: body.sha256,
-        canonical_media_hash: body.canonical_media_hash || null,
-        robust_fingerprint_profile: body.robust_fingerprint_profile || null,
-        media_type: body.media_type,
-        filters: body.filters || {},
-        maxResults: body.maxResults || 10,
-        maxCandidates: body.maxCandidates || 100,
-        actorId: req.user ? req.user.id : null,
-      };
+      const limit = Math.min(parseInt(maxResults) || 10, 50);
+      const candidateLimit = Math.min(parseInt(maxCandidates) || 100, 500);
 
-      const verdict = await searchEvidence(searchRequest);
+      // ── Stage 0: Exact lookup ─────────────────────────────────────────────
+      const exactMatch = await prisma.evidence.findFirst({
+        where: {
+          sha256Original: sha256.toLowerCase(),
+        },
+        include: {
+          signerDevice: {
+            select: {
+              deviceId: true,
+              keyId: true,
+              trustTier: true,
+            },
+          },
+        },
+      });
 
-      logger.info(`Search completed for sha256: ${body.sha256}, media_type: ${body.media_type}, results: ${verdict.total_matches}`);
+      if (exactMatch) {
+        return res.status(200).json({
+          stage: 'exact_match',
+          total_matches: 1,
+          results: [{
+            evidenceId: exactMatch.evidenceId,
+            sha256Original: exactMatch.sha256Original,
+            mediaType: exactMatch.mediaType,
+            registrationServerTime: exactMatch.registrationServerTime,
+            signerDeviceKeyId: exactMatch.signerDeviceKeyId,
+            trustTier: exactMatch.signerDevice?.trustTier,
+            match_type: 'EXACT',
+          }],
+          policy_version: POLICY_VERSION,
+          request_id: req.requestId,
+        });
+      }
 
-      res.json({
-        ...verdict,
-        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-        request_id: req.requestId || 'unknown'
+      // ── Stage 1: Coarse candidate generation ────────────────────────────────
+      let candidates = [];
+
+      // Try perceptual hash prefix match
+      if (perceptualHash) {
+        candidates = await prisma.evidence.findMany({
+          where: {
+            perceptualHash: {
+              startsWith: perceptualHash.substring(0, 8),
+            },
+            mediaType: mediaType.toUpperCase(),
+          },
+          take: candidateLimit,
+          include: {
+            signerDevice: {
+              select: {
+                deviceId: true,
+                keyId: true,
+                trustTier: true,
+              },
+            },
+          },
+        });
+      }
+
+      // Fallback: search by media type and time window
+      if (candidates.length === 0) {
+        candidates = await prisma.evidence.findMany({
+          where: {
+            mediaType: mediaType.toUpperCase(),
+          },
+          take: candidateLimit,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            signerDevice: {
+              select: {
+                deviceId: true,
+                keyId: true,
+                trustTier: true,
+              },
+            },
+          },
+        });
+      }
+
+      // ── Stage 2: Re-ranking (simplified) ──────────────────────────────────
+      const ranked = candidates.map(c => ({
+        evidenceId: c.evidenceId,
+        sha256Original: c.sha256Original,
+        mediaType: c.mediaType,
+        registrationServerTime: c.registrationServerTime,
+        signerDeviceKeyId: c.signerDeviceKeyId,
+        trustTier: c.signerDevice?.trustTier,
+        match_type: 'SIMILAR',
+      }));
+
+      // ── Stage 3: Verdict construction ─────────────────────────────────────
+      const totalMatches = ranked.length;
+      const similarityVerdict = totalMatches > 0 ? 'WEAK_SIMILARITY' : 'NO_RELIABLE_SIMILARITY';
+
+      console.info(`[Search] ${totalMatches} candidates for ${sha256.substring(0, 16)}...`);
+
+      return res.status(200).json({
+        stage: 'similarity_search',
+        total_matches: totalMatches,
+        similarity_verdict: similarityVerdict,
+        results: ranked.slice(0, limit),
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
       });
     } catch (error) {
-      if (error.message && error.message.includes('required')) {
-        return res.status(422).json({
-          error_code: 'VALIDATION_ERROR',
-          message: error.message,
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
       next(error);
     }
   }
 );
 
-/**
- * GET /search/{evidence_id}/related
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /search/:evidenceId/related
+// Get related evidence for a specific evidence record
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.get(
-  '/:evidence_id/related',
+  '/:evidenceId/related',
   authenticate,
-  generalRateLimit, // FIXED: use generalRateLimit instead of rateLimiter(...)
-  validateEvidenceId,
   async (req, res, next) => {
     try {
-      const { evidence_id } = req.params;
-      const maxResults = parseInt(req.query.maxResults, 10) || 10;
+      const { evidenceId } = req.params;
+      const maxResults = Math.min(parseInt(req.query.maxResults) || 10, 50);
 
-      const related = await getRelatedEvidence(evidence_id, maxResults);
+      // Check if evidence exists
+      const evidence = await prisma.evidence.findUnique({
+        where: { evidenceId },
+        select: { evidenceId: true, mediaType: true, sha256Original: true },
+      });
 
-      if (related.length === 0) {
-        const { prisma } = require('../config/database');
-        const exists = await prisma.evidenceRecord.findUnique({
-          where: { evidence_id },
-          select: { evidence_id: true },
-        });
-        if (!exists) {
-          return res.status(404).json({
-            error_code: 'EVIDENCE_NOT_FOUND',
-            message: 'No evidence found with that ID',
-            detail: null,
-            policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-            request_id: req.requestId || 'unknown'
-          });
-        }
-        return res.json({
-          evidence_id,
-          related: [],
-          total: 0,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
+      if (!evidence) {
+        return res.status(404).json(
+          buildError(404, 'EVIDENCE_NOT_FOUND', 'Evidence record not found', { evidenceId }, req)
+        );
       }
 
-      const response = {
-        evidence_id,
-        related: related.map(item => ({
-          evidence_id: item.evidence.evidence_id,
-          sha256: item.evidence.sha256_original,
-          media_type: item.evidence.media_type,
-          created_at: item.evidence.created_at,
-          relation_type: item.relation_type,
-        })),
-        total: related.length,
-        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-        request_id: req.requestId || 'unknown'
-      };
+      // Find related: same media type, chain parent/children
+      const related = await prisma.evidence.findMany({
+        where: {
+          mediaType: evidence.mediaType,
+          NOT: { evidenceId },
+          OR: [
+            { chainParentEvidenceId: evidenceId },
+            { evidenceId: { in: await getChildrenIds(evidenceId) } },
+          ],
+        },
+        take: maxResults,
+        include: {
+          signerDevice: {
+            select: {
+              keyId: true,
+              trustTier: true,
+            },
+          },
+        },
+      });
 
-      res.json(response);
+      return res.status(200).json({
+        evidenceId,
+        total: related.length,
+        related: related.map(r => ({
+          evidenceId: r.evidenceId,
+          sha256Original: r.sha256Original,
+          mediaType: r.mediaType,
+          registrationServerTime: r.registrationServerTime,
+          signerDeviceKeyId: r.signerDeviceKeyId,
+          trustTier: r.signerDevice?.trustTier,
+        })),
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
+      });
     } catch (error) {
       next(error);
     }
   }
 );
+
+// Helper: Get child evidence IDs
+async function getChildrenIds(parentId) {
+  const children = await prisma.evidence.findMany({
+    where: { chainParentEvidenceId: parentId },
+    select: { evidenceId: true },
+  });
+  return children.map(c => c.evidenceId);
+}
 
 module.exports = router;
