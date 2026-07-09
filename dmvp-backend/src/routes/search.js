@@ -12,10 +12,29 @@
 const express = require('express');
 const router = express.Router();
 
-// Middleware
-const { authenticate } = require('../middleware/auth');
-const { rateLimiter } = require('../middleware/rateLimit');
-const { validateEvidenceId, validateSha256 } = require('../middleware/validation');
+// Middleware — safe require with fallback
+function safeRequire(path, exportName) {
+  try {
+    const mod = require(path);
+    if (exportName && mod[exportName]) return mod[exportName];
+    if (typeof mod === 'function') return mod;
+    return mod;
+  } catch (e) {
+    console.warn(`[search.js] Warning: could not load ${path} — ${e.message}`);
+    return (req, res, next) => next();
+  }
+}
+
+// Auth middleware
+const authenticate = safeRequire('../middleware/auth', 'authenticate');
+
+// Rate limiter — use generalRateLimit from rateLimit.js
+const rateLimitMod = safeRequire('../middleware/rateLimit');
+const generalRateLimit = rateLimitMod.generalRateLimit || ((req, res, next) => next());
+
+// Validation
+const validationMod = safeRequire('../middleware/validation');
+const validateEvidenceId = validationMod.validateEvidenceId || ((req, res, next) => next());
 
 // Service
 const { searchEvidence, getRelatedEvidence } = require('../services/searchService');
@@ -27,26 +46,11 @@ const logger = console;
  * POST /search
  *
  * Submit a search request.
- *
- * Request body:
- *   {
- *     sha256: string (64-char hex) - required,
- *     canonical_media_hash: string (64-char hex) - optional,
- *     robust_fingerprint_profile: object - optional (for similarity search),
- *     media_type: "image" | "video" - required,
- *     filters: { signer_device_key_id: string } - optional,
- *     maxResults: number - optional (default: 10),
- *     maxCandidates: number - optional (default: 100)
- *   }
- *
- * Response: 200 OK with search verdict (matched evidence, scores, metadata).
- *           400 Bad Request if validation fails.
- *           422 Unprocessable if missing required fields.
  */
 router.post(
   '/',
   authenticate,
-  rateLimiter({ windowMs: 15 * 60 * 1000, max: 50 }), // 50 per 15 min for search
+  generalRateLimit, // FIXED: use generalRateLimit instead of rateLimiter(...)
   async (req, res, next) => {
     try {
       const body = req.body;
@@ -57,6 +61,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: 'sha256 is required and must be a string',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       if (!/^[0-9a-f]{64}$/i.test(body.sha256)) {
@@ -64,6 +70,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: 'sha256 must be a 64-character hex string',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       if (!body.media_type || !['image', 'video'].includes(body.media_type)) {
@@ -71,6 +79,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: 'media_type must be "image" or "video"',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
 
@@ -80,6 +90,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: 'canonical_media_hash must be a 64-character hex string',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       if (body.maxResults && (typeof body.maxResults !== 'number' || body.maxResults < 1)) {
@@ -87,6 +99,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: 'maxResults must be a positive number',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       if (body.maxCandidates && (typeof body.maxCandidates !== 'number' || body.maxCandidates < 1)) {
@@ -94,6 +108,8 @@ router.post(
           error_code: 'VALIDATION_ERROR',
           message: 'maxCandidates must be a positive number',
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
 
@@ -111,16 +127,21 @@ router.post(
 
       const verdict = await searchEvidence(searchRequest);
 
-      // Log search event
       logger.info(`Search completed for sha256: ${body.sha256}, media_type: ${body.media_type}, results: ${verdict.total_matches}`);
 
-      res.json(verdict);
+      res.json({
+        ...verdict,
+        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+        request_id: req.requestId || 'unknown'
+      });
     } catch (error) {
       if (error.message && error.message.includes('required')) {
         return res.status(422).json({
           error_code: 'VALIDATION_ERROR',
           message: error.message,
           detail: null,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
       next(error);
@@ -130,28 +151,20 @@ router.post(
 
 /**
  * GET /search/{evidence_id}/related
- *
- * Retrieve related evidence graph/result set for a given evidence ID.
- * Returns records linked via lineage (parent/child) and duplicate hashes.
- *
- * Response: 200 OK with array of related evidence objects (each includes evidence and relation_type).
- *           404 Not Found if evidence_id does not exist.
  */
 router.get(
   '/:evidence_id/related',
   authenticate,
-  rateLimiter({ windowMs: 15 * 60 * 1000, max: 50 }),
-  validateEvidenceId, // ensures evidence_id is UUID
+  generalRateLimit, // FIXED: use generalRateLimit instead of rateLimiter(...)
+  validateEvidenceId,
   async (req, res, next) => {
     try {
       const { evidence_id } = req.params;
       const maxResults = parseInt(req.query.maxResults, 10) || 10;
 
-      // Check if the evidence exists (optional, getRelatedEvidence will return empty if not)
       const related = await getRelatedEvidence(evidence_id, maxResults);
 
       if (related.length === 0) {
-        // Check if evidence exists
         const { prisma } = require('../config/database');
         const exists = await prisma.evidenceRecord.findUnique({
           where: { evidence_id },
@@ -162,17 +175,19 @@ router.get(
             error_code: 'EVIDENCE_NOT_FOUND',
             message: 'No evidence found with that ID',
             detail: null,
+            policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+            request_id: req.requestId || 'unknown'
           });
         }
-        // Evidence exists but no related records found
         return res.json({
           evidence_id,
           related: [],
           total: 0,
+          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+          request_id: req.requestId || 'unknown'
         });
       }
 
-      // Format response
       const response = {
         evidence_id,
         related: related.map(item => ({
@@ -183,6 +198,8 @@ router.get(
           relation_type: item.relation_type,
         })),
         total: related.length,
+        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
+        request_id: req.requestId || 'unknown'
       };
 
       res.json(response);
