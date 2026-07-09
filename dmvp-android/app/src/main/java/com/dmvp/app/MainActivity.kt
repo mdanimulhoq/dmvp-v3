@@ -47,18 +47,18 @@ class MainActivity : ComponentActivity() {
 
     private fun requestPermissions() {
         val permissions = mutableListOf()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) = PackageManager.PERMISSION_GRANTED) {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.CAMERA)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) = PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_MEDIA_IMAGES)
             }
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) = PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_MEDIA_VIDEO)
             }
         } else {
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) = PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
                 permissions.add(Manifest.permission.READ_EXTERNAL_STORAGE)
             }
         }
@@ -71,7 +71,7 @@ class MainActivity : ComponentActivity() {
         intent?.let {
             val action = it.action
             val data = it.data
-            if (action == Intent.ACTION_VIEW && data = null) {
+            if (action == Intent.ACTION_VIEW && data != null) {
                 Log.d(TAG, "Deep link: $data")
             }
         }
@@ -79,16 +79,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
-        permissions: Array(out String),
+        permissions: Array<String>,
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode == PERMISSION_REQUEST_CODE) {
             for (i in permissions.indices) {
-                if (grantResults(i) == PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "Permission granted: $^{permissions^(i^)^}")
+                if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
+                    Log.d(TAG, "Permission granted: ${permissions[i]}")
                 } else {
-                    Log.w(TAG, "Permission denied: $^{permissions^(i^)^}")
+                    Log.w(TAG, "Permission denied: ${permissions[i]}")
                 }
             }
         }
