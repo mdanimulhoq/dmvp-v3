@@ -5,7 +5,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const crypto = require('crypto');
-const rateLimit = require('express-rate-limit'); // ADDED: for backward compatibility
+const rateLimit = require('express-rate-limit');
 
 const {
   connectDatabase,
@@ -21,11 +21,27 @@ const {
   registerRateLimit,
 } = require('./middleware/rateLimit');
 
-const evidenceRoutes = require('./routes/evidence');
-const verifyRoutes = require('./routes/verify');
-const searchRoutes = require('./routes/search');
-const devicesRoutes = require('./routes/devices');
-const ownershipRoutes = require('./routes/ownership');
+// ── Safe route loading with error handling ──────────────────────────────────
+function safeLoadRoute(name, path) {
+  try {
+    const route = require(path);
+    if (!route || typeof route !== 'function') {
+      console.error(`[FATAL] Route "${name}" at ${path} does not export a valid router`);
+      return null;
+    }
+    console.info(`[Routes] Loaded: ${name} from ${path}`);
+    return route;
+  } catch (error) {
+    console.error(`[FATAL] Failed to load route "${name}" from ${path}: ${error.message}`);
+    return null;
+  }
+}
+
+const evidenceRoutes = safeLoadRoute('evidence', './routes/evidence');
+const verifyRoutes = safeLoadRoute('verify', './routes/verify');
+const searchRoutes = safeLoadRoute('search', './routes/search');
+const devicesRoutes = safeLoadRoute('devices', './routes/devices');
+const ownershipRoutes = safeLoadRoute('ownership', './routes/ownership');
 
 const app = express();
 
@@ -143,11 +159,7 @@ app.use(express.urlencoded({ extended: true, limit: `${MAX_JSON_BODY_MB}mb` }));
 
 app.use(generalRateLimit);
 
-// ============================================================
-// BACKWARD COMPATIBILITY: rateLimiter() function for route files
-// ============================================================
-// Some route files call rateLimiter({ windowMs, max }) as a function.
-// This wrapper creates an express-rate-limit middleware on the fly.
+// ── Backward compatibility: rateLimiter() factory ───────────────────────────
 function rateLimiter(options = {}) {
   const windowMs = options.windowMs || 15 * 60 * 1000;
   const max = options.max || 100;
@@ -243,11 +255,22 @@ app.get(`${API_BASE_PATH}`, (req, res) => {
   });
 });
 
-app.use(`${API_BASE_PATH}/evidence`, registerRateLimit, evidenceRoutes);
-app.use(`${API_BASE_PATH}/verify`, verifyRateLimit, verifyRoutes);
-app.use(`${API_BASE_PATH}/search`, searchRoutes);
-app.use(`${API_BASE_PATH}/devices`, authRateLimit, devicesRoutes);
-app.use(`${API_BASE_PATH}/ownership`, authRateLimit, ownershipRoutes);
+// ── Mount routes only if successfully loaded ────────────────────────────────
+if (evidenceRoutes) {
+  app.use(`${API_BASE_PATH}/evidence`, registerRateLimit, evidenceRoutes);
+}
+if (verifyRoutes) {
+  app.use(`${API_BASE_PATH}/verify`, verifyRateLimit, verifyRoutes);
+}
+if (searchRoutes) {
+  app.use(`${API_BASE_PATH}/search`, searchRoutes);
+}
+if (devicesRoutes) {
+  app.use(`${API_BASE_PATH}/devices`, authRateLimit, devicesRoutes);
+}
+if (ownershipRoutes) {
+  app.use(`${API_BASE_PATH}/ownership`, authRateLimit, ownershipRoutes);
+}
 
 app.use((req, res, next) => {
   next(
@@ -460,5 +483,5 @@ module.exports = {
   startServer,
   shutdown,
   createAppError,
-  rateLimiter, // ADDED: Export for backward compatibility with route files
+  rateLimiter,
 };
