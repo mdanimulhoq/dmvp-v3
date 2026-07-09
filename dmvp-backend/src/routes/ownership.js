@@ -3,15 +3,14 @@
  * @description DMVP v3.0 — Ownership Claim Routes
  *
  * Express routes for ownership claims and dispute management.
+ * Aligned with prisma/schema.prisma OwnershipClaim model.
  *
  * Endpoints:
  *   POST   /ownership/claim                    — Submit an ownership claim
- *   GET    /ownership/:evidence_id             — List claims for evidence
- *   GET    /ownership/:evidence_id/claim/:claim_id  — Get specific claim
- *   PUT    /ownership/:evidence_id/claim/:claim_id/review  — Admin review claim
- *   DELETE /ownership/:evidence_id/claim/:claim_id  — Withdraw claim (owner only)
- *
- * All routes enforce authentication, rate limiting, and structured error responses.
+ *   GET    /ownership/:evidenceId              — List claims for evidence
+ *   GET    /ownership/:evidenceId/claim/:claimId    — Get specific claim
+ *   PUT    /ownership/:evidenceId/claim/:claimId    — Update claim status (admin)
+ *   DELETE /ownership/:evidenceId/claim/:claimId    — Revoke claim
  *
  * @module routes/ownership
  * @version dmvp-v3.0.0
@@ -29,7 +28,7 @@ const { prisma } = require('../config/database');
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'dmvp-v3.0.0';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Helper: Build structured error response
+// Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
 function buildError(status, errorCode, message, detail = null, req = null) {
@@ -43,10 +42,6 @@ function buildError(status, errorCode, message, detail = null, req = null) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helper: Validate UUID format
-// ─────────────────────────────────────────────────────────────────────────────
-
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function isValidUUID(str) {
@@ -56,6 +51,7 @@ function isValidUUID(str) {
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /ownership/claim
 // Submit an ownership claim for an evidence record.
+// Body: { evidenceId, claimantPublicKeyReference, claimType, claimStatement?, signature }
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.post(
@@ -64,54 +60,67 @@ router.post(
   rateLimiter({ windowMs: 15 * 60 * 1000, max: 30 }),
   async (req, res, next) => {
     try {
-      const { evidence_id, claimant_identity, claim_type, supporting_data } = req.body;
+      const {
+        evidenceId,
+        claimantPublicKeyReference,
+        claimType,
+        claimStatement,
+        signature,
+        signatureAlgorithm,
+      } = req.body;
 
-      // ── Input validation ─────────────────────────────────────────────────
-      if (!evidence_id || typeof evidence_id !== 'string') {
+      // ── Validation ────────────────────────────────────────────────────────
+      if (!evidenceId || typeof evidenceId !== 'string') {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'evidence_id is required and must be a string', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId is required and must be a string', null, req)
         );
       }
 
-      if (!claimant_identity || typeof claimant_identity !== 'string' || claimant_identity.trim().length === 0) {
+      if (!claimantPublicKeyReference || typeof claimantPublicKeyReference !== 'string' || claimantPublicKeyReference.trim().length === 0) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'claimant_identity is required and must be a non-empty string', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'claimantPublicKeyReference is required and must be a non-empty string', null, req)
         );
       }
 
-      const validClaimTypes = ['original_author', 'license_holder', 'custodian', 'other'];
-      if (!claim_type || !validClaimTypes.includes(claim_type)) {
+      const validClaimTypes = ['ORIGINAL_CREATOR', 'RIGHTFUL_OWNER', 'CUSTODIAN'];
+      if (!claimType || !validClaimTypes.includes(claimType)) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', `claim_type must be one of: ${validClaimTypes.join(', ')}`, null, req)
+          buildError(400, 'VALIDATION_ERROR', `claimType must be one of: ${validClaimTypes.join(', ')}`, null, req)
+        );
+      }
+
+      if (!signature || typeof signature !== 'string') {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'signature is required', null, req)
         );
       }
 
       // ── Verify evidence exists ────────────────────────────────────────────
-      const evidence = await prisma.evidenceRecord.findUnique({
-        where: { evidence_id },
-        select: { evidence_id: true, media_type: true },
+      const evidence = await prisma.evidence.findUnique({
+        where: { evidenceId },
+        select: { evidenceId: true, mediaType: true },
       });
 
       if (!evidence) {
         return res.status(404).json(
-          buildError(404, 'EVIDENCE_NOT_FOUND', 'Evidence record not found', { evidence_id }, req)
+          buildError(404, 'EVIDENCE_NOT_FOUND', 'Evidence record not found', { evidenceId }, req)
         );
       }
 
       // ── Check for duplicate claim ─────────────────────────────────────────
       const existing = await prisma.ownershipClaim.findFirst({
         where: {
-          evidence_id,
-          claimant_identity: claimant_identity.trim(),
+          evidenceId,
+          claimantPublicKeyReference: claimantPublicKeyReference.trim(),
         },
-        select: { claim_id: true, review_status: true },
+        select: { ownershipClaimId: true, status: true },
       });
 
       if (existing) {
         return res.status(409).json(
           buildError(409, 'DUPLICATE_CLAIM', 'A claim already exists for this evidence and claimant', {
-            claim_id: existing.claim_id,
-            status: existing.review_status,
+            claimId: existing.ownershipClaimId,
+            status: existing.status,
           }, req)
         );
       }
@@ -119,43 +128,48 @@ router.post(
       // ── Create claim ──────────────────────────────────────────────────────
       const claim = await prisma.ownershipClaim.create({
         data: {
-          evidence_id,
-          claimant_identity: claimant_identity.trim(),
-          claim_type,
-          claim_timestamp: new Date(),
-          review_status: 'PENDING',
-          supporting_data: supporting_data && typeof supporting_data === 'object'
-            ? JSON.stringify(supporting_data)
-            : null,
+          evidenceId,
+          claimantDeviceId: req.user?.deviceId || null,
+          claimantPublicKeyReference: claimantPublicKeyReference.trim(),
+          claimType,
+          claimStatement: claimStatement || null,
+          signature,
+          signatureAlgorithm: signatureAlgorithm || 'SHA256withECDSA',
+          status: 'PENDING',
+          requestId: req.requestId,
+          metadata: req.body.metadata || null,
         },
       });
 
       // ── Audit log ─────────────────────────────────────────────────────────
       await prisma.auditLog.create({
         data: {
-          event_type: 'OWNERSHIP_CLAIM_SUBMITTED',
-          actor: req.user?.id || claimant_identity.trim(),
-          target: evidence_id,
-          timestamp: new Date(),
-          policy_version: POLICY_VERSION,
-          metadata: {
-            claim_id: claim.claim_id,
-            claim_type,
-            evidence_media_type: evidence.media_type,
+          requestId: req.requestId,
+          action: 'OWNERSHIP_CLAIM_SUBMITTED',
+          entityType: 'OwnershipClaim',
+          entityId: claim.ownershipClaimId,
+          actorDeviceId: req.user?.deviceId || null,
+          actorKeyId: claimantPublicKeyReference.trim(),
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'] || null,
+          details: {
+            evidenceId,
+            claimType,
+            mediaType: evidence.mediaType,
           },
         },
       });
 
-      console.info(`[Ownership] Claim submitted: evidence=${evidence_id} claimant=${claimant_identity.trim()}`);
+      console.info(`[Ownership] Claim submitted: evidence=${evidenceId} claimant=${claimantPublicKeyReference.trim()}`);
 
       return res.status(201).json({
         success: true,
-        claim_id: claim.claim_id,
-        evidence_id: claim.evidence_id,
-        claimant_identity: claim.claimant_identity,
-        claim_type: claim.claim_type,
-        review_status: claim.review_status,
-        claim_timestamp: claim.claim_timestamp,
+        claimId: claim.ownershipClaimId,
+        evidenceId: claim.evidenceId,
+        claimantPublicKeyReference: claim.claimantPublicKeyReference,
+        claimType: claim.claimType,
+        status: claim.status,
+        createdAt: claim.createdAt,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -171,57 +185,57 @@ router.post(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /ownership/:evidence_id
+// GET /ownership/:evidenceId
 // Retrieve all claims for a given evidence record.
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get(
-  '/:evidence_id',
+  '/:evidenceId',
   authenticate,
   rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }),
   async (req, res, next) => {
     try {
-      const { evidence_id } = req.params;
+      const { evidenceId } = req.params;
 
-      if (!isValidUUID(evidence_id)) {
+      if (!isValidUUID(evidenceId)) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'evidence_id must be a valid UUID', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId must be a valid UUID', null, req)
         );
       }
 
-      // Verify evidence exists
-      const evidence = await prisma.evidenceRecord.findUnique({
-        where: { evidence_id },
-        select: { evidence_id: true },
+      const evidence = await prisma.evidence.findUnique({
+        where: { evidenceId },
+        select: { evidenceId: true },
       });
 
       if (!evidence) {
         return res.status(404).json(
-          buildError(404, 'EVIDENCE_NOT_FOUND', 'Evidence record not found', { evidence_id }, req)
+          buildError(404, 'EVIDENCE_NOT_FOUND', 'Evidence record not found', { evidenceId }, req)
         );
       }
 
       const claims = await prisma.ownershipClaim.findMany({
-        where: { evidence_id },
-        orderBy: { created_at: 'desc' },
+        where: { evidenceId },
+        orderBy: { createdAt: 'desc' },
         select: {
-          claim_id: true,
-          evidence_id: true,
-          claimant_identity: true,
-          claim_type: true,
-          claim_timestamp: true,
-          review_status: true,
-          review_notes: true,
-          reviewed_at: true,
-          reviewed_by: true,
-          created_at: true,
-          updated_at: true,
+          ownershipClaimId: true,
+          evidenceId: true,
+          claimantDeviceId: true,
+          claimantPublicKeyReference: true,
+          claimType: true,
+          claimStatement: true,
+          status: true,
+          signatureAlgorithm: true,
+          createdAt: true,
+          updatedAt: true,
+          revokedAt: true,
+          metadata: true,
         },
       });
 
       return res.status(200).json({
-        evidence_id,
-        claim_count: claims.length,
+        evidenceId,
+        claimCount: claims.length,
         claims,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
@@ -233,70 +247,59 @@ router.get(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /ownership/:evidence_id/claim/:claim_id
+// GET /ownership/:evidenceId/claim/:claimId
 // Get a specific claim by ID.
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get(
-  '/:evidence_id/claim/:claim_id',
+  '/:evidenceId/claim/:claimId',
   authenticate,
   rateLimiter({ windowMs: 15 * 60 * 1000, max: 100 }),
   async (req, res, next) => {
     try {
-      const { evidence_id, claim_id } = req.params;
+      const { evidenceId, claimId } = req.params;
 
-      if (!isValidUUID(evidence_id)) {
+      if (!isValidUUID(evidenceId)) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'evidence_id must be a valid UUID', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId must be a valid UUID', null, req)
         );
       }
 
-      if (!claim_id || typeof claim_id !== 'string') {
+      if (!claimId || typeof claimId !== 'string') {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'claim_id is required', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'claimId is required', null, req)
         );
       }
 
       const claim = await prisma.ownershipClaim.findFirst({
         where: {
-          claim_id,
-          evidence_id,
+          ownershipClaimId: claimId,
+          evidenceId,
         },
         select: {
-          claim_id: true,
-          evidence_id: true,
-          claimant_identity: true,
-          claim_type: true,
-          claim_timestamp: true,
-          review_status: true,
-          review_notes: true,
-          reviewed_at: true,
-          reviewed_by: true,
-          supporting_data: true,
-          created_at: true,
-          updated_at: true,
+          ownershipClaimId: true,
+          evidenceId: true,
+          claimantDeviceId: true,
+          claimantPublicKeyReference: true,
+          claimType: true,
+          claimStatement: true,
+          signatureAlgorithm: true,
+          status: true,
+          createdAt: true,
+          updatedAt: true,
+          revokedAt: true,
+          metadata: true,
         },
       });
 
       if (!claim) {
         return res.status(404).json(
-          buildError(404, 'CLAIM_NOT_FOUND', 'Claim not found for this evidence', { evidence_id, claim_id }, req)
+          buildError(404, 'CLAIM_NOT_FOUND', 'Claim not found for this evidence', { evidenceId, claimId }, req)
         );
-      }
-
-      // Parse supporting_data if stored as JSON string
-      let parsedSupportingData = null;
-      if (claim.supporting_data) {
-        try {
-          parsedSupportingData = JSON.parse(claim.supporting_data);
-        } catch {
-          parsedSupportingData = claim.supporting_data;
-        }
       }
 
       return res.status(200).json({
         ...claim,
-        supporting_data: parsedSupportingData,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -307,90 +310,92 @@ router.get(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PUT /ownership/:evidence_id/claim/:claim_id/review
-// Admin endpoint to review and update claim status.
+// PUT /ownership/:evidenceId/claim/:claimId
+// Update claim status (admin review).
+// Body: { status: "ACCEPTED" | "REJECTED" | "REVOKED" }
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.put(
-  '/:evidence_id/claim/:claim_id/review',
+  '/:evidenceId/claim/:claimId',
   authenticate,
   rateLimiter({ windowMs: 15 * 60 * 1000, max: 50 }),
   async (req, res, next) => {
     try {
-      const { evidence_id, claim_id } = req.params;
-      const { review_status, review_notes } = req.body;
+      const { evidenceId, claimId } = req.params;
+      const { status: newStatus } = req.body;
 
-      if (!isValidUUID(evidence_id)) {
+      if (!isValidUUID(evidenceId)) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'evidence_id must be a valid UUID', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId must be a valid UUID', null, req)
         );
       }
 
-      if (!claim_id || typeof claim_id !== 'string') {
+      if (!claimId || typeof claimId !== 'string') {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'claim_id is required', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'claimId is required', null, req)
         );
       }
 
-      const validStatuses = ['APPROVED', 'REJECTED', 'PENDING'];
-      if (!review_status || !validStatuses.includes(review_status)) {
+      const validStatuses = ['ACCEPTED', 'REJECTED', 'REVOKED', 'PENDING'];
+      if (!newStatus || !validStatuses.includes(newStatus)) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', `review_status must be one of: ${validStatuses.join(', ')}`, null, req)
+          buildError(400, 'VALIDATION_ERROR', `status must be one of: ${validStatuses.join(', ')}`, null, req)
         );
       }
 
       // Check claim exists
       const existing = await prisma.ownershipClaim.findFirst({
         where: {
-          claim_id,
-          evidence_id,
+          ownershipClaimId: claimId,
+          evidenceId,
         },
       });
 
       if (!existing) {
         return res.status(404).json(
-          buildError(404, 'CLAIM_NOT_FOUND', 'Claim not found for this evidence', { evidence_id, claim_id }, req)
+          buildError(404, 'CLAIM_NOT_FOUND', 'Claim not found for this evidence', { evidenceId, claimId }, req)
         );
       }
 
-      // Update claim
+      // Build update data
+      const updateData = { status: newStatus };
+      if (newStatus === 'REVOKED') {
+        updateData.revokedAt = new Date();
+      }
+
       const updated = await prisma.ownershipClaim.update({
-        where: { claim_id },
-        data: {
-          review_status,
-          review_notes: review_notes || null,
-          reviewed_at: new Date(),
-          reviewed_by: req.user?.id || 'system',
-        },
+        where: { ownershipClaimId: claimId },
+        data: updateData,
       });
 
       // Audit log
       await prisma.auditLog.create({
         data: {
-          event_type: 'OWNERSHIP_CLAIM_REVIEWED',
-          actor: req.user?.id || 'system',
-          target: evidence_id,
-          timestamp: new Date(),
-          policy_version: POLICY_VERSION,
-          metadata: {
-            claim_id,
-            previous_status: existing.review_status,
-            new_status: review_status,
-            review_notes: review_notes || null,
+          requestId: req.requestId,
+          action: 'OWNERSHIP_CLAIM_STATUS_UPDATED',
+          entityType: 'OwnershipClaim',
+          entityId: claimId,
+          actorDeviceId: req.user?.deviceId || null,
+          actorKeyId: req.user?.keyId || null,
+          ipAddress: req.ip,
+          details: {
+            evidenceId,
+            previousStatus: existing.status,
+            newStatus,
           },
         },
       });
 
-      console.info(`[Ownership] Claim reviewed: claim=${claim_id} status=${review_status} reviewer=${req.user?.id || 'system'}`);
+      console.info(`[Ownership] Claim updated: claim=${claimId} status=${newStatus}`);
 
       return res.status(200).json({
         success: true,
-        claim_id: updated.claim_id,
-        evidence_id: updated.evidence_id,
-        review_status: updated.review_status,
-        review_notes: updated.review_notes,
-        reviewed_at: updated.reviewed_at,
-        reviewed_by: updated.reviewed_by,
+        claimId: updated.ownershipClaimId,
+        evidenceId: updated.evidenceId,
+        status: updated.status,
+        previousStatus: existing.status,
+        updatedAt: updated.updatedAt,
+        revokedAt: updated.revokedAt,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -401,81 +406,89 @@ router.put(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DELETE /ownership/:evidence_id/claim/:claim_id
-// Withdraw a claim (only by the claimant or admin).
+// DELETE /ownership/:evidenceId/claim/:claimId
+// Revoke/withdraw a claim.
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.delete(
-  '/:evidence_id/claim/:claim_id',
+  '/:evidenceId/claim/:claimId',
   authenticate,
   rateLimiter({ windowMs: 15 * 60 * 1000, max: 20 }),
   async (req, res, next) => {
     try {
-      const { evidence_id, claim_id } = req.params;
+      const { evidenceId, claimId } = req.params;
 
-      if (!isValidUUID(evidence_id)) {
+      if (!isValidUUID(evidenceId)) {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'evidence_id must be a valid UUID', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId must be a valid UUID', null, req)
         );
       }
 
-      if (!claim_id || typeof claim_id !== 'string') {
+      if (!claimId || typeof claimId !== 'string') {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'claim_id is required', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'claimId is required', null, req)
         );
       }
 
       const claim = await prisma.ownershipClaim.findFirst({
         where: {
-          claim_id,
-          evidence_id,
+          ownershipClaimId: claimId,
+          evidenceId,
         },
       });
 
       if (!claim) {
         return res.status(404).json(
-          buildError(404, 'CLAIM_NOT_FOUND', 'Claim not found for this evidence', { evidence_id, claim_id }, req)
+          buildError(404, 'CLAIM_NOT_FOUND', 'Claim not found for this evidence', { evidenceId, claimId }, req)
         );
       }
 
-      // Only claimant or admin can withdraw
-      const currentUser = req.user?.id || 'anonymous';
-      const isClaimant = claim.claimant_identity === currentUser;
+      // Only claimant or admin can revoke
+      const currentUserKeyId = req.user?.keyId || 'anonymous';
+      const isClaimant = claim.claimantPublicKeyReference === currentUserKeyId;
       const isAdmin = req.user?.role === 'admin';
 
       if (!isClaimant && !isAdmin) {
         return res.status(403).json(
-          buildError(403, 'FORBIDDEN', 'Only the claimant or an admin can withdraw this claim', null, req)
+          buildError(403, 'FORBIDDEN', 'Only the claimant or an admin can revoke this claim', null, req)
         );
       }
 
-      await prisma.ownershipClaim.delete({
-        where: { claim_id },
+      const updated = await prisma.ownershipClaim.update({
+        where: { ownershipClaimId: claimId },
+        data: {
+          status: 'REVOKED',
+          revokedAt: new Date(),
+        },
       });
 
       // Audit log
       await prisma.auditLog.create({
         data: {
-          event_type: 'OWNERSHIP_CLAIM_WITHDRAWN',
-          actor: currentUser,
-          target: evidence_id,
-          timestamp: new Date(),
-          policy_version: POLICY_VERSION,
-          metadata: {
-            claim_id,
-            claimant_identity: claim.claimant_identity,
-            withdrawn_by: currentUser,
+          requestId: req.requestId,
+          action: 'OWNERSHIP_CLAIM_REVOKED',
+          entityType: 'OwnershipClaim',
+          entityId: claimId,
+          actorDeviceId: req.user?.deviceId || null,
+          actorKeyId: currentUserKeyId,
+          ipAddress: req.ip,
+          details: {
+            evidenceId,
+            claimantPublicKeyReference: claim.claimantPublicKeyReference,
+            revokedBy: currentUserKeyId,
           },
         },
       });
 
-      console.info(`[Ownership] Claim withdrawn: claim=${claim_id} by=${currentUser}`);
+      console.info(`[Ownership] Claim revoked: claim=${claimId} by=${currentUserKeyId}`);
 
       return res.status(200).json({
         success: true,
-        message: 'Claim withdrawn successfully',
-        claim_id,
-        evidence_id,
+        message: 'Claim revoked successfully',
+        claimId,
+        evidenceId,
+        status: updated.status,
+        revokedAt: updated.revokedAt,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
