@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <external-files-path name="dmvp_pictures" path="Pictures" />
+    <external-files-path name="dmvp_videos" path="Movies" />
+    <cache-path name="dmvp_cache" path="." />
+</paths>
