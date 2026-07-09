@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  app/src/main/res/values/colors.xml
+  DMVP v3.0 Android App Color Resources.
+  Defines all colors used in the app, following the dark theme design.
+  Colors align with the Material3 theme and Color.kt definitions.
+-->
+
+<resources>
+    <!-- Primary Colors (Deep Purple) -->
+    <color name="deep_purple_900">#1A0033</color>
+    <color name="deep_purple_800">#2D004D</color>
+    <color name="deep_purple_700">#400066</color>
+    <color name="deep_purple_600">#5C0088</color>
+    <color name="deep_purple_500">#7A00B3</color>
+    <color name="deep_purple_400">#9A00D9</color>
+
+    <!-- Accent Colors (Cyan) -->
+    <color name="cyan_bright">#00E5FF</color>
+    <color name="cyan_400">#00B8D4</color>
+    <color name="cyan_700">#00838F</color>
+
+    <!-- Surface Colors - Dark Theme -->
+    <color name="dark_background">#0A0A0A</color>
+    <color name="dark_surface">#121212</color>
+    <color name="dark_surface_variant">#1E1E1E</color>
+    <color name="dark_surface_container">#2A2A2A</color>
+    <color name="dark_surface_container_high">#333333</color>
+
+    <!-- Surface Colors - Light Theme -->
+    <color name="light_surface">#F5F5F5</color>
+    <color name="light_surface_variant">#E8E8E8</color>
+    <color name="light_surface_container">#DDDDDD</color>
+
+    <!-- Text Colors - Dark Theme -->
+    <color name="text_primary_dark">#E0E0E0</color>
+    <color name="text_secondary_dark">#B0B0B0</color>
+    <color name="text_tertiary_dark">#808080</color>
+
+    <!-- Text Colors - Light Theme -->
+    <color name="text_primary_light">#1A1A1A</color>
+    <color name="text_secondary_light">#4D4D4D</color>
+    <color name="text_tertiary_light">#808080</color>
+
+    <!-- Status / Feedback Colors -->
+    <color name="success">#4CAF50</color>
+    <color name="warning">#FFC107</color>
+    <color name="error">#E53935</color>
+    <color name="info">#2196F3</color>
+
+    <!-- Divider / Border Colors -->
+    <color name="divider_dark">#3D3D3D</color>
+    <color name="divider_light">#CCCCCC</color>
+
+    <!-- Trust Tier Badge Colors -->
+    <color name="tier_a_badge">#00E676</color>  <!-- Bright Green -->
+    <color name="tier_b_badge">#FFD740</color>  <!-- Amber -->
+    <color name="tier_c_badge">#FF6D00</color>  <!-- Orange -->
+    <color name="tier_d_badge">#E53935</color>  <!-- Red -->
+
+    <!-- Evidence Quality Colors -->
+    <color name="high_quality">#4CAF50</color>
+    <color name="moderate_quality">#FFC107</color>
+    <color name="low_quality">#E53935</color>
+
+    <!-- Verdict Colors -->
+    <color name="verdict_integrity_match">#4CAF50</color>
+    <color name="verdict_integrity_no_match">#E53935</color>
+    <color name="verdict_similarity_strong">#00BCD4</color>
+    <color name="verdict_similarity_weak">#FFA726</color>
+    <color name="verdict_similarity_none">#E53935</color>
+
+    <!-- Generic / Utility Colors -->
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="transparent">#00000000</color>
+
+    <!-- Material3 Theme Color Attributes -->
+    <!-- These are referenced by the theme and should match the above values -->
+    <color name="md_theme_dark_primary">#400066</color>
+    <color name="md_theme_dark_onPrimary">#FFFFFF</color>
+    <color name="md_theme_dark_primaryContainer">#2D004D</color>
+    <color name="md_theme_dark_onPrimaryContainer">#00E5FF</color>
+    <color name="md_theme_dark_secondary">#00E5FF</color>
+    <color name="md_theme_dark_onSecondary">#1A0033</color>
+    <color name="md_theme_dark_secondaryContainer">#00838F</color>
+    <color name="md_theme_dark_onSecondaryContainer">#FFFFFF</color>
+    <color name="md_theme_dark_tertiary">#9A00D9</color>
+    <color name="md_theme_dark_onTertiary">#FFFFFF</color>
+    <color name="md_theme_dark_tertiaryContainer">#5C0088</color>
+    <color name="md_theme_dark_onTertiaryContainer">#FFFFFF</color>
+    <color name="md_theme_dark_background">#0A0A0A</color>
+    <color name="md_theme_dark_onBackground">#E0E0E0</color>
+    <color name="md_theme_dark_surface">#121212</color>
+    <color name="md_theme_dark_onSurface">#E0E0E0</color>
+    <color name="md_theme_dark_surfaceVariant">#1E1E1E</color>
+    <color name="md_theme_dark_onSurfaceVariant">#B0B0B0</color>
+    <color name="md_theme_dark_error">#E53935</color>
+    <color name="md_theme_dark_onError">#FFFFFF</color>
+    <color name="md_theme_dark_errorContainer">#8B0000</color>
+    <color name="md_theme_dark_onErrorContainer">#FFFFFF</color>
+    <color name="md_theme_dark_outline">#3D3D3D</color>
+    <color name="md_theme_dark_outlineVariant">#3D3D3D</color>
+    <color name="md_theme_dark_inverseSurface">#F5F5F5</color>
+    <color name="md_theme_dark_inverseOnSurface">#1A1A1A</color>
+    <color name="md_theme_dark_inversePrimary">#7A00B3</color>
+
+    <color name="md_theme_light_primary">#5C0088</color>
+    <color name="md_theme_light_onPrimary">#FFFFFF</color>
+    <color name="md_theme_light_primaryContainer">#D8B4FF</color>
+    <color name="md_theme_light_onPrimaryContainer">#1A0033</color>
+    <color name="md_theme_light_secondary">#00838F</color>
+    <color name="md_theme_light_onSecondary">#FFFFFF</color>
+    <color name="md_theme_light_secondaryContainer">#B2EBF2</color>
+    <color name="md_theme_light_onSecondaryContainer">#1A0033</color>
+    <color name="md_theme_light_tertiary">#9A00D9</color>
+    <color name="md_theme_light_onTertiary">#FFFFFF</color>
+    <color name="md_theme_light_tertiaryContainer">#E8D5F5</color>
+    <color name="md_theme_light_onTertiaryContainer">#1A0033</color>
+    <color name="md_theme_light_background">#F5F5F5</color>
+    <color name="md_theme_light_onBackground">#1A1A1A</color>
+    <color name="md_theme_light_surface">#F5F5F5</color>
+    <color name="md_theme_light_onSurface">#1A1A1A</color>
+    <color name="md_theme_light_surfaceVariant">#E8E8E8</color>
+    <color name="md_theme_light_onSurfaceVariant">#4D4D4D</color>
+    <color name="md_theme_light_error">#E53935</color>
+    <color name="md_theme_light_onError">#FFFFFF</color>
+    <color name="md_theme_light_errorContainer">#FFCDD2</color>
+    <color name="md_theme_light_onErrorContainer">#B71C1C</color>
+    <color name="md_theme_light_outline">#CCCCCC</color>
+    <color name="md_theme_light_outlineVariant">#CCCCCC</color>
+    <color name="md_theme_light_inverseSurface">#121212</color>
+    <color name="md_theme_light_inverseOnSurface">#E0E0E0</color>
+    <color name="md_theme_light_inversePrimary">#9A00D9</color>
+</resources>
