@@ -191,9 +191,46 @@ const registerRateLimit = rateLimit({
   ),
 });
 
+// ═════════════════════════════════════════════════════════════════════════════
+// BACKWARD COMPATIBILITY: rateLimiter() factory for route files
+// ═════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Backward-compatible rateLimiter() factory for route files that call it
+ * as a function with custom options. Creates a custom rate-limit middleware
+ * on the fly.
+ *
+ * Usage in route files:
+ *   const { rateLimiter } = require('../middleware/rateLimit');
+ *   router.post('/', rateLimiter({ windowMs: 900000, max: 30 }), handler);
+ *
+ * @param {Object} [options={}] - Configuration options.
+ * @param {number} [options.windowMs=900000] - Time window in milliseconds.
+ * @param {number} [options.max=100] - Max requests per window.
+ * @returns {import('express-rate-limit').RateLimitRequestHandler}
+ */
+function rateLimiter(options = {}) {
+  const windowMs = options.windowMs || FIFTEEN_MINUTES_MS;
+  const maxRequests = options.max || 100;
+
+  return rateLimit({
+    windowMs,
+    max: maxRequests,
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator,
+    skip: skipSuccessfulOptions,
+    handler: buildHandler(
+      'Too many requests. Please slow down and try again later.',
+      windowMs
+    ),
+  });
+}
+
 module.exports = {
   generalRateLimit,
   authRateLimit,
   verifyRateLimit,
   registerRateLimit,
+  rateLimiter,        // ← ADDED: backward compatibility for route files
 };
