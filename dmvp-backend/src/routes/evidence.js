@@ -1,132 +1,295 @@
 /**
- * src/routes/evidence.js
+ * @file src/routes/evidence.js
+ * @description DMVP v3.0 — Evidence Registration Routes
  *
- * Express routes for evidence registration and retrieval.
  * Endpoints:
- *   POST /evidence - Register new evidence (requires signed request)
- *   GET /evidence/:id - Get evidence record by ID (public subset)
- *   GET /evidence/by-hash/:sha256 - Get evidence by SHA-256 (exact hash lookup)
+ *   POST /evidence              — Register new Canonical Evidence Envelope
+ *   GET  /evidence/:evidenceId  — Fetch evidence record
+ *   GET  /evidence/by-hash/:sha256 — Exact hash lookup
  *
- * All routes enforce authentication, rate limiting, and input validation.
- * Registration endpoints require signature verification and idempotency.
+ * @module routes/evidence
+ * @version dmvp-v3.0.0
  */
+
+'use strict';
 
 const express = require('express');
 const router = express.Router();
 
-// Middleware — safe require with fallback
-function safeRequire(path, exportName) {
-  try {
-    const mod = require(path);
-    if (exportName && mod[exportName]) return mod[exportName];
-    if (typeof mod === 'function') return mod;
-    return mod;
-  } catch (e) {
-    console.warn(`[evidence.js] Warning: could not load ${path} — ${e.message}`);
-    return (req, res, next) => next();
-  }
+const { authenticate } = require('../middleware/auth');
+const { registerRateLimit } = require('../middleware/rateLimit');
+const { prisma } = require('../config/database');
+const { computeSHA256Sync } = require('../utils/hashUtils');
+
+const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
+const PROTOCOL_VERSION = process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildError(status, errorCode, message, detail = null, req = null) {
+  return {
+    status,
+    errorCode,
+    message,
+    detail,
+    policy_version: POLICY_VERSION,
+    request_id: req?.requestId || 'unknown',
+  };
 }
 
-// Auth middleware
-const authenticate = safeRequire('../middleware/auth', 'authenticate');
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// Rate limiter
-const registerRateLimit = safeRequire('../middleware/rateLimit', 'registerRateLimit');
+function isValidUUID(str) {
+  return typeof str === 'string' && UUID_REGEX.test(str);
+}
 
-// Validation
-const validationMod = safeRequire('../middleware/validation');
-const validateEvidenceRegistration = validationMod.validateEvidenceRegistration || ((req, res, next) => next());
-const validateEvidenceId = validationMod.validateEvidenceId || ((req, res, next) => next());
-const validateSha256 = validationMod.validateSha256 || ((req, res, next) => next());
+function isValidSHA256(str) {
+  return typeof str === 'string' && /^[0-9a-f]{64}$/i.test(str);
+}
 
-// Signature verification
-const signatureMod = safeRequire('../middleware/signatureVerify');
-const verifyRegistrationSignature = signatureMod.verifyRegistrationSignature || ((req, res, next) => next());
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /evidence
+// Register a new Canonical Evidence Envelope (CEE)
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Service
-const {
-  registerEvidence,
-  getEvidenceById,
-  getEvidenceByHash,
-} = require('../services/evidenceService');
-
-// Logger (optional)
-const logger = console;
-
-/**
- * POST /evidence
- *
- * Register a new evidence record.
- */
 router.post(
   '/',
   authenticate,
   registerRateLimit,
-  validateEvidenceRegistration,
-  verifyRegistrationSignature,
   async (req, res, next) => {
     try {
-      const payload = req.body;
-      const idempotencyKey = req.headers['idempotency-key'] || null;
-      const actorId = req.user ? req.user.id : null;
+      const {
+        evidenceId,
+        mediaType,
+        sha256Original,
+        canonicalMediaHash,
+        robustFingerprintProfile,
+        fingerprintAlgorithmVersions,
+        signerDeviceKeyId,
+        signerPublicKeyReference,
+        signatureAlgorithm,
+        deviceAttestationSummary,
+        trustedTimestampTokenReference,
+        captureTimeClaim,
+        geolocationLat,
+        geolocationLng,
+        privacyFlags,
+        clientAppVersion,
+        verificationPolicyVersion,
+        chainParentEvidenceId,
+        auditReference,
+        signature,
+        perceptualHash,
+        fingerprintPrimary,
+        fingerprintSearchTokens,
+        durationMs,
+        width,
+        height,
+        codec,
+        frameRate,
+        transformHints,
+        idempotencyKey,
+      } = req.body;
 
-      const result = await registerEvidence(payload, idempotencyKey, actorId);
+      // ── Validation ────────────────────────────────────────────────────────
+      if (!evidenceId || !isValidUUID(evidenceId)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId must be a valid UUID', null, req)
+        );
+      }
 
-      res.status(201).json({
-        ...result,
-        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-        request_id: req.requestId || 'unknown'
+      if (!mediaType || !['IMAGE', 'VIDEO'].includes(mediaType.toUpperCase())) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'mediaType must be IMAGE or VIDEO', null, req)
+        );
+      }
+
+      if (!sha256Original || !isValidSHA256(sha256Original)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'sha256Original must be a 64-char hex string', null, req)
+        );
+      }
+
+      if (!signerDeviceKeyId || typeof signerDeviceKeyId !== 'string') {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'signerDeviceKeyId is required', null, req)
+        );
+      }
+
+      if (!signature || typeof signature !== 'string') {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'signature is required', null, req)
+        );
+      }
+
+      // ── Idempotency check ─────────────────────────────────────────────────
+      if (idempotencyKey) {
+        const existing = await prisma.evidence.findFirst({
+          where: { idempotencyKey },
+          select: { evidenceId: true, createdAt: true },
+        });
+        if (existing) {
+          return res.status(200).json({
+            success: true,
+            evidenceId: existing.evidenceId,
+            idempotencyKey,
+            createdAt: existing.createdAt,
+            message: 'Evidence already registered (idempotent response)',
+            policy_version: POLICY_VERSION,
+            request_id: req.requestId,
+          });
+        }
+      }
+
+      // ── Check duplicate by device + hash ──────────────────────────────────
+      const duplicate = await prisma.evidence.findFirst({
+        where: {
+          signerDeviceKeyId,
+          sha256Original: sha256Original.toLowerCase(),
+        },
+        select: { evidenceId: true },
+      });
+
+      if (duplicate) {
+        return res.status(409).json(
+          buildError(409, 'DUPLICATE_EVIDENCE', 'Evidence with this hash already registered from this device', {
+            evidenceId: duplicate.evidenceId,
+          }, req)
+        );
+      }
+
+      // ── Verify device exists ──────────────────────────────────────────────
+      const device = await prisma.device.findUnique({
+        where: { keyId: signerDeviceKeyId },
+        select: { deviceId: true, trustTier: true, revokedAt: true },
+      });
+
+      if (!device) {
+        return res.status(404).json(
+          buildError(404, 'DEVICE_NOT_FOUND', 'Signing device not found in registry', { signerDeviceKeyId }, req)
+        );
+      }
+
+      if (device.revokedAt) {
+        return res.status(403).json(
+          buildError(403, 'DEVICE_REVOKED', 'Signing device has been revoked', { signerDeviceKeyId }, req)
+        );
+      }
+
+      // ── Create evidence record ────────────────────────────────────────────
+      const evidence = await prisma.evidence.create({
+        data: {
+          evidenceId,
+          protocolVersion: PROTOCOL_VERSION,
+          mediaType: mediaType.toUpperCase(),
+          sha256Original: sha256Original.toLowerCase(),
+          canonicalMediaHash: canonicalMediaHash ? canonicalMediaHash.toLowerCase() : null,
+          robustFingerprintProfile: robustFingerprintProfile || {},
+          fingerprintAlgorithmVersions: fingerprintAlgorithmVersions || {},
+          signerDeviceKeyId,
+          signerPublicKeyReference: signerPublicKeyReference || signerDeviceKeyId,
+          signatureAlgorithm: signatureAlgorithm || 'SHA256withECDSA',
+          deviceAttestationSummary: deviceAttestationSummary || null,
+          trustedTimestampTokenReference: trustedTimestampTokenReference || null,
+          captureTimeClaim: captureTimeClaim ? new Date(captureTimeClaim) : null,
+          geolocationLat: geolocationLat ? parseFloat(geolocationLat) : null,
+          geolocationLng: geolocationLng ? parseFloat(geolocationLng) : null,
+          privacyFlags: privacyFlags || { gps: false, exif: false, device_info: false },
+          clientAppVersion: clientAppVersion || 'unknown',
+          verificationPolicyVersion: verificationPolicyVersion || POLICY_VERSION,
+          chainParentEvidenceId: chainParentEvidenceId || null,
+          auditReference: auditReference || computeSHA256Sync(`${evidenceId}-${Date.now()}`),
+          signature,
+          perceptualHash: perceptualHash || null,
+          fingerprintPrimary: fingerprintPrimary || null,
+          fingerprintSearchTokens: fingerprintSearchTokens || null,
+          durationMs: durationMs ? parseInt(durationMs) : null,
+          width: width ? parseInt(width) : null,
+          height: height ? parseInt(height) : null,
+          codec: codec || null,
+          frameRate: frameRate ? parseFloat(frameRate) : null,
+          transformHints: transformHints || null,
+          status: 'ACTIVE',
+          requestId: req.requestId,
+          idempotencyKey: idempotencyKey || null,
+        },
+      });
+
+      // ── Audit log ─────────────────────────────────────────────────────────
+      await prisma.auditLog.create({
+        data: {
+          requestId: req.requestId,
+          action: 'EVIDENCE_REGISTERED',
+          entityType: 'Evidence',
+          entityId: evidenceId,
+          actorDeviceId: device.deviceId,
+          actorKeyId: signerDeviceKeyId,
+          ipAddress: req.ip,
+          userAgent: req.headers['user-agent'] || null,
+          details: {
+            mediaType: evidence.mediaType,
+            trustTier: device.trustTier,
+          },
+        },
+      });
+
+      console.info(`[Evidence] Registered: ${evidenceId} device=${signerDeviceKeyId}`);
+
+      return res.status(201).json({
+        success: true,
+        evidenceId: evidence.evidenceId,
+        mediaType: evidence.mediaType,
+        sha256Original: evidence.sha256Original,
+        status: evidence.status,
+        createdAt: evidence.createdAt,
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
       });
     } catch (error) {
-      if (error.message && error.message.includes('duplicate')) {
-        return res.status(409).json({
-          error_code: 'DUPLICATE_EVIDENCE',
-          message: 'Evidence already exists with same hash and device key',
-          detail: error.message,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
-      if (error.message && error.message.includes('Missing required field')) {
-        return res.status(422).json({
-          error_code: 'VALIDATION_ERROR',
-          message: error.message,
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
+      if (error.code === 'P2002') {
+        return res.status(409).json(
+          buildError(409, 'DUPLICATE_EVIDENCE', 'Evidence with this ID or audit reference already exists', null, req)
+        );
       }
       next(error);
     }
   }
 );
 
-/**
- * GET /evidence/:id
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /evidence/:evidenceId
+// Fetch an evidence record by ID
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.get(
-  '/:id',
+  '/:evidenceId',
   authenticate,
-  validateEvidenceId,
   async (req, res, next) => {
     try {
-      const { id } = req.params;
-      const evidence = await getEvidenceById(id);
-      if (!evidence) {
-        return res.status(404).json({
-          error_code: 'EVIDENCE_NOT_FOUND',
-          message: 'No evidence found with that ID',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
+      const { evidenceId } = req.params;
+
+      if (!isValidUUID(evidenceId)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'evidenceId must be a valid UUID', null, req)
+        );
       }
 
-      const { signature, device_attestation_summary, ...publicData } = evidence;
-      res.json({
-        ...publicData,
-        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-        request_id: req.requestId || 'unknown'
+      const evidence = await prisma.evidence.findUnique({
+        where: { evidenceId },
+      });
+
+      if (!evidence) {
+        return res.status(404).json(
+          buildError(404, 'EVIDENCE_NOT_FOUND', 'Evidence record not found', { evidenceId }, req)
+        );
+      }
+
+      return res.status(200).json({
+        ...evidence,
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
       });
     } catch (error) {
       next(error);
@@ -134,31 +297,41 @@ router.get(
   }
 );
 
-/**
- * GET /evidence/by-hash/:sha256
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /evidence/by-hash/:sha256
+// Exact hash lookup
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.get(
   '/by-hash/:sha256',
   authenticate,
-  validateSha256,
   async (req, res, next) => {
     try {
       const { sha256 } = req.params;
-      const evidence = await getEvidenceByHash(sha256);
-      if (!evidence) {
-        return res.status(404).json({
-          error_code: 'EVIDENCE_NOT_FOUND',
-          message: 'No evidence found with that SHA-256 hash',
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
+
+      if (!isValidSHA256(sha256)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'sha256 must be a 64-character hex string', null, req)
+        );
       }
-      const { signature, device_attestation_summary, ...publicData } = evidence;
-      res.json({
-        ...publicData,
-        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-        request_id: req.requestId || 'unknown'
+
+      const evidence = await prisma.evidence.findFirst({
+        where: {
+          sha256Original: sha256.toLowerCase(),
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (!evidence) {
+        return res.status(404).json(
+          buildError(404, 'EVIDENCE_NOT_FOUND', 'No evidence found with this hash', { sha256 }, req)
+        );
+      }
+
+      return res.status(200).json({
+        ...evidence,
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
       });
     } catch (error) {
       next(error);
