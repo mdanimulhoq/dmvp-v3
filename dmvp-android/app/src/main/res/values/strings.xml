@@ -1,0 +1,225 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Identity -->
+    <string name="app_name">DMVP</string>
+    <string name="app_full_name">Decentralized Media Verification Protocol</string>
+    <string name="app_tagline">Proof, Not Possession</string>
+    <string name="app_version">v3.0.0</string>
+    <string name="app_description">Zero-storage media verification with cryptographic provenance</string>
+
+    <!-- Navigation Labels -->
+    <string name="nav_home">Home</string>
+    <string name="nav_capture">Capture</string>
+    <string name="nav_verify">Verify</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_settings">Settings</string>
+
+    <!-- Screen Titles -->
+    <string name="title_home">Dashboard</string>
+    <string name="title_capture">Capture Media</string>
+    <string name="title_register">Register Evidence</string>
+    <string name="title_verify">Verify Media</string>
+    <string name="title_search">Search Evidence</string>
+    <string name="title_device">Device Trust</string>
+    <string name="title_settings">Settings</string>
+
+    <!-- Action Buttons -->
+    <string name="btn_capture">Capture</string>
+    <string name="btn_register">Register Evidence</string>
+    <string name="btn_verify">Verify</string>
+    <string name="btn_search">Search</string>
+    <string name="btn_settings">Settings</string>
+    <string name="btn_retry">Retry</string>
+    <string name="btn_cancel">Cancel</string>
+    <string name="btn_continue">Continue</string>
+    <string name="btn_submit">Submit</string>
+    <string name="btn_save">Save</string>
+    <string name="btn_delete">Delete</string>
+    <string name="btn_share">Share</string>
+    <string name="btn_copy">Copy</string>
+    <string name="btn_close">Close</string>
+    <string name="btn_back">Back</string>
+    <string name="btn_next">Next</string>
+    <string name="btn_done">Done</string>
+
+    <!-- Status Messages -->
+    <string name="status_loading">Loading…</string>
+    <string name="status_processing">Processing…</string>
+    <string name="status_success">Success</string>
+    <string name="status_error">Error</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_pending">Pending</string>
+    <string name="status_verifying">Verifying…</string>
+    <string name="status_registering">Registering…</string>
+    <string name="status_searching">Searching…</string>
+    <string name="status_no_results">No results found</string>
+    <string name="status_empty_state">Nothing to show</string>
+    <string name="status_initializing">Initializing…</string>
+
+    <!-- Home Dashboard -->
+    <string name="home_registered_count">Evidence Registered</string>
+    <string name="home_verified_count">Media Verified</string>
+    <string name="home_device_status">Device Status</string>
+    <string name="home_recent_activity">Recent Activity</string>
+    <string name="home_quick_actions">Quick Actions</string>
+    <string name="home_welcome">Welcome to DMVP</string>
+    <string name="home_subtitle">Verify media authenticity without surrendering custody</string>
+
+    <!-- Capture Screen -->
+    <string name="capture_camera">Camera</string>
+    <string name="capture_gallery">Gallery</string>
+    <string name="capture_select_media">Select Media</string>
+    <string name="capture_take_photo">Take Photo</string>
+    <string name="capture_record_video">Record Video</string>
+    <string name="capture_media_selected">Media selected</string>
+    <string name="capture_no_media">No media selected</string>
+    <string name="capture_permission_required">Camera permission required</string>
+    <string name="capture_permission_denied">Permission denied. Enable in settings.</string>
+
+    <!-- Register Screen -->
+    <string name="register_title">Register Evidence</string>
+    <string name="register_subtitle">Create cryptographic proof of media authenticity</string>
+    <string name="register_hash_preview">SHA-256 Hash</string>
+    <string name="register_fingerprint_preview">Fingerprint</string>
+    <string name="register_device_key">Device Key</string>
+    <string name="register_privacy_settings">Privacy Settings</string>
+    <string name="register_include_gps">Include GPS location</string>
+    <string name="register_include_exif">Include EXIF metadata</string>
+    <string name="register_include_device">Include device info</string>
+    <string name="register_confirm">Confirm Registration</string>
+    <string name="register_success">Evidence registered successfully</string>
+    <string name="register_evidence_id">Evidence ID</string>
+    <string name="register_timestamp">Timestamp</string>
+    <string name="register_copy_id">Copy Evidence ID</string>
+
+    <!-- Verify Screen -->
+    <string name="verify_title">Verify Media</string>
+    <string name="verify_subtitle">Check authenticity against registered evidence</string>
+    <string name="verify_select_file">Select file to verify</string>
+    <string name="verify_drag_drop">Drop file here or tap to browse</string>
+    <string name="verify_browse">Browse Files</string>
+    <string name="verify_result">Verification Result</string>
+    <string name="verify_processing">Analyzing media…</string>
+
+    <!-- Verdict Labels -->
+    <string name="verdict_integrity">Integrity</string>
+    <string name="verdict_provenance">Provenance</string>
+    <string name="verdict_similarity">Similarity</string>
+    <string name="verdict_evidence_quality">Evidence Quality</string>
+    <string name="verdict_transformation">Transformations Detected</string>
+
+    <!-- Integrity Verdicts -->
+    <string name="integrity_exact_match">Exact Match</string>
+    <string name="integrity_canonical_match">Canonical Match</string>
+    <string name="integrity_no_match">No Exact Match</string>
+
+    <!-- Provenance Verdicts -->
+    <string name="provenance_trusted">Signed by Trusted Device</string>
+    <string name="provenance_known">Signed by Known Device</string>
+    <string name="provenance_none">No Trusted Provenance</string>
+    <string name="provenance_missing">Attestation Missing</string>
+
+    <!-- Similarity Verdicts -->
+    <string name="similarity_strong">Strong Derivative Match</string>
+    <string name="similarity_probable">Probable Derivative</string>
+    <string name="similarity_weak">Weak Similarity</string>
+    <string name="similarity_none">No Reliable Similarity</string>
+
+    <!-- Evidence Quality -->
+    <string name="quality_high">High Evidentiary Strength</string>
+    <string name="quality_moderate">Moderate Evidentiary Strength</string>
+    <string name="quality_low">Low Evidentiary Strength</string>
+
+    <!-- Transformation Indicators -->
+    <string name="transform_compression">Compression Detected</string>
+    <string name="transform_transcode">Transcode Likely</string>
+    <string name="transform_trim">Trim/Clip Likely</string>
+    <string name="transform_subtitle">Subtitle Overlay</string>
+    <string name="transform_crop">Crop/Resize</string>
+    <string name="transform_framerate">Frame Rate Change</string>
+
+    <!-- Trust Tiers -->
+    <string name="tier_a">Tier A — Hardware-Backed + Valid Attestation</string>
+    <string name="tier_b">Tier B — Hardware-Backed (Degraded Attestation)</string>
+    <string name="tier_c">Tier C — Software-Backed Key</string>
+    <string name="tier_d">Tier D — Revoked or Untrusted</string>
+    <string name="tier_a_short">Tier A</string>
+    <string name="tier_b_short">Tier B</string>
+    <string name="tier_c_short">Tier C</string>
+    <string name="tier_d_short">Tier D</string>
+
+    <!-- Search Screen -->
+    <string name="search_title">Search Evidence</string>
+    <string name="search_placeholder">Search by hash, ID, or fingerprint…</string>
+    <string name="search_filter">Filter Results</string>
+    <string name="search_sort_by">Sort By</string>
+    <string name="search_date">Date</string>
+    <string name="search_relevance">Relevance</string>
+    <string name="search_media_type">Media Type</string>
+    <string name="search_images">Images</string>
+    <string name="search_videos">Videos</string>
+    <string name="search_all">All</string>
+
+    <!-- Device Screen -->
+    <string name="device_title">Device Trust</string>
+    <string name="device_status">Device Status</string>
+    <string name="device_key_id">Device Key ID</string>
+    <string name="device_trust_tier">Trust Tier</string>
+    <string name="device_attestation">Attestation State</string>
+    <string name="device_rotate_key">Rotate Key</string>
+    <string name="device_revoke_key">Revoke Key</string>
+    <string name="device_recover">Recover Identity</string>
+    <string name="device_lineage">Key Lineage</string>
+    <string name="device_created">Created</string>
+    <string name="device_last_used">Last Used</string>
+
+    <!-- Error Messages -->
+    <string name="error_network">Network error. Check connection.</string>
+    <string name="error_invalid_signature">Invalid signature verification</string>
+    <string name="error_device_not_trusted">Device not trusted or revoked</string>
+    <string name="error_evidence_not_found">Evidence not found in registry</string>
+    <string name="error_rate_limit">Rate limit exceeded. Try again later.</string>
+    <string name="error_server">Server error. Please retry.</string>
+    <string name="error_timeout">Request timed out</string>
+    <string name="error_invalid_input">Invalid input provided</string>
+    <string name="error_unauthorized">Unauthorized access</string>
+    <string name="error_forbidden">Access forbidden</string>
+    <string name="error_unknown">Unknown error occurred</string>
+
+    <!-- Dialog Messages -->
+    <string name="dialog_confirm_registration">Confirm evidence registration?</string>
+    <string name="dialog_confirm_verification">Start verification process?</string>
+    <string name="dialog_delete_evidence">Delete evidence permanently?</string>
+    <string name="dialog_revoke_device">Revoke this device key?</string>
+    <string name="dialog_rotate_key">Rotate to new device key?</string>
+    <string name="dialog_recovery">Initiate identity recovery?</string>
+    <string name="dialog_warning">This action cannot be undone.</string>
+    <string name="dialog_positive">Yes, Proceed</string>
+    <string name="dialog_negative">Cancel</string>
+    <string name="dialog_neutral">Learn More</string>
+
+    <!-- Accessibility -->
+    <string name="a11y_capture_button">Capture media button</string>
+    <string name="a11y_verify_button">Verify media button</string>
+    <string name="a11y_search_button">Search evidence button</string>
+    <string name="a11y_settings_button">Open settings</string>
+    <string name="a11y_back_button">Navigate back</string>
+    <string name="a11y_close_button">Close dialog</string>
+    <string name="a11y_copy_button">Copy to clipboard</string>
+    <string name="a11y_share_button">Share evidence</string>
+    <string name="a11y_image_preview">Image preview</string>
+    <string name="a11y_video_preview">Video preview</string>
+    <string name="a11y_loading">Loading content</string>
+    <string name="a11y_success">Action completed successfully</string>
+    <string name="a11y_error">Error occurred</string>
+
+    <!-- Misc -->
+    <string name="placeholder_not_available">N/A</string>
+    <string name="placeholder_loading">…</string>
+    <string name="separator_bullet">•</string>
+    <string name="separator_pipe">|</string>
+    <string name="format_date_time">yyyy-MM-dd HH:mm:ss</string>
+    <string name="format_date_only">yyyy-MM-dd</string>
+    <string name="format_time_only">HH:mm:ss</string>
+
+</resources>
