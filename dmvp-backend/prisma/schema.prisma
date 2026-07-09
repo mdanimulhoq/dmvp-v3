@@ -1,0 +1,270 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum MediaType {
+  IMAGE @map("image")
+  VIDEO @map("video")
+}
+
+enum DevicePlatform {
+  ANDROID @map("android")
+  DESKTOP @map("desktop")
+  SERVER  @map("server")
+  OTHER   @map("other")
+}
+
+enum DeviceTrustTier {
+  TIER_A @map("TIER_A")
+  TIER_B @map("TIER_B")
+  TIER_C @map("TIER_C")
+  TIER_D @map("TIER_D")
+}
+
+enum AttestationStatus {
+  VALID    @map("valid")
+  DEGRADED @map("degraded")
+  MISSING  @map("missing")
+  INVALID  @map("invalid")
+  REVOKED  @map("revoked")
+}
+
+enum EvidenceStatus {
+  ACTIVE     @map("active")
+  SUPERSEDED @map("superseded")
+  REVOKED    @map("revoked")
+}
+
+enum OwnershipClaimType {
+  ORIGINAL_CREATOR @map("original_creator")
+  RIGHTFUL_OWNER   @map("rightful_owner")
+  CUSTODIAN        @map("custodian")
+}
+
+enum OwnershipClaimStatus {
+  PENDING  @map("pending")
+  ACCEPTED @map("accepted")
+  REJECTED @map("rejected")
+  REVOKED  @map("revoked")
+}
+
+model Device {
+  deviceId                    String             @id @default(uuid()) @map("device_id")
+  keyId                       String             @unique @map("key_id") @db.VarChar(191)
+  publicKeyReference          String             @unique @map("public_key_reference") @db.VarChar(191)
+  publicKeyPem                String             @map("public_key_pem") @db.Text
+  platform                    DevicePlatform     @default(ANDROID)
+  signatureAlgorithm          String             @default("SHA256withECDSA") @map("signature_algorithm") @db.VarChar(64)
+  trustTier                   DeviceTrustTier    @default(TIER_C) @map("trust_tier")
+  hardwareBacked              Boolean            @default(false) @map("hardware_backed")
+  attestationStatus           AttestationStatus  @default(MISSING) @map("attestation_status")
+  attestationSummary          Json?              @map("attestation_summary")
+  attestationCertificateChain Json?              @map("attestation_certificate_chain")
+  attestationVerifiedAt       DateTime?          @map("attestation_verified_at")
+  attestationExpiresAt        DateTime?          @map("attestation_expires_at")
+  appPackageName              String?            @map("app_package_name") @db.VarChar(191)
+  appVersion                  String?            @map("app_version") @db.VarChar(64)
+  deviceModel                 String?            @map("device_model") @db.VarChar(191)
+  osVersion                   String?            @map("os_version") @db.VarChar(64)
+  firstSeenAt                 DateTime           @default(now()) @map("first_seen_at")
+  lastSeenAt                  DateTime?          @map("last_seen_at")
+  revokedAt                   DateTime?          @map("revoked_at")
+  revokeReason                String?            @map("revoke_reason") @db.VarChar(255)
+  metadata                    Json?
+  createdAt                   DateTime           @default(now()) @map("created_at")
+  updatedAt                   DateTime           @updatedAt @map("updated_at")
+
+  evidences                   Evidence[]
+  ownershipClaims             OwnershipClaim[]
+  nonces                      Nonce[]
+  auditLogs                   AuditLog[]
+  verificationRecords         VerificationRecord[]
+
+  @@index([trustTier], map: "idx_devices_trust_tier")
+  @@index([attestationStatus], map: "idx_devices_attestation_status")
+  @@index([revokedAt], map: "idx_devices_revoked_at")
+  @@index([lastSeenAt], map: "idx_devices_last_seen_at")
+  @@map("devices")
+}
+
+model Evidence {
+  evidenceId                        String             @id @default(uuid()) @map("evidence_id")
+  protocolVersion                   String             @map("protocol_version") @db.VarChar(32)
+  mediaType                         MediaType          @map("media_type")
+  sha256Original                    String             @map("sha256_original") @db.Char(64)
+  canonicalMediaHash                String?            @map("canonical_media_hash") @db.Char(64)
+
+  // Canonical Evidence Envelope fields
+  robustFingerprintProfile          Json               @map("robust_fingerprint_profile")
+  fingerprintAlgorithmVersions      Json               @map("fingerprint_algorithm_versions")
+  signerDeviceKeyId                 String             @map("signer_device_key_id") @db.VarChar(191)
+  signerPublicKeyReference          String             @map("signer_public_key_reference") @db.VarChar(191)
+  signatureAlgorithm                String             @map("signature_algorithm") @db.VarChar(64)
+  deviceAttestationSummary          Json?              @map("device_attestation_summary")
+  registrationServerTime            DateTime           @default(now()) @map("registration_server_time")
+  trustedTimestampTokenReference    String?            @map("trusted_timestamp_token_reference") @db.VarChar(255)
+  captureTimeClaim                  DateTime?          @map("capture_time_claim")
+  geolocationLat                    Decimal?           @map("geolocation_lat") @db.Decimal(9, 6)
+  geolocationLng                    Decimal?           @map("geolocation_lng") @db.Decimal(9, 6)
+  privacyFlags                      Json               @map("privacy_flags")
+  clientAppVersion                  String             @map("client_app_version") @db.VarChar(64)
+  verificationPolicyVersion         String             @map("verification_policy_version") @db.VarChar(64)
+  chainParentEvidenceId             String?            @map("chain_parent_evidence_id")
+  auditReference                    String             @unique @map("audit_reference") @db.VarChar(191)
+  signature                         String             @db.Text
+
+  // Search / verification support fields
+  perceptualHash                    String?            @map("perceptual_hash") @db.VarChar(128)
+  fingerprintPrimary                String?            @map("fingerprint_primary") @db.VarChar(191)
+  fingerprintSearchTokens           Json?              @map("fingerprint_search_tokens")
+  durationMs                        Int?               @map("duration_ms")
+  width                             Int?
+  height                            Int?
+  codec                             String?            @db.VarChar(64)
+  frameRate                         Decimal?           @map("frame_rate") @db.Decimal(8, 3)
+  transformHints                    Json?              @map("transform_hints")
+
+  // Operational fields
+  status                            EvidenceStatus     @default(ACTIVE)
+  requestId                         String?            @map("request_id") @db.VarChar(191)
+  idempotencyKey                    String?            @map("idempotency_key") @db.VarChar(191)
+  createdAt                         DateTime           @default(now()) @map("created_at")
+  updatedAt                         DateTime           @updatedAt @map("updated_at")
+
+  signerDevice                      Device             @relation(fields: [signerDeviceKeyId], references: [keyId], onUpdate: Cascade, onDelete: Restrict)
+  chainParent                       Evidence?          @relation("EvidenceChain", fields: [chainParentEvidenceId], references: [evidenceId], onUpdate: Cascade, onDelete: SetNull)
+  derivedChildren                   Evidence[]         @relation("EvidenceChain")
+  ownershipClaims                   OwnershipClaim[]
+  verificationRecords               VerificationRecord[]
+
+  @@unique([signerDeviceKeyId, sha256Original], map: "uq_evidence_device_sha256")
+  @@index([sha256Original], map: "idx_evidence_sha256_original")
+  @@index([canonicalMediaHash], map: "idx_evidence_canonical_media_hash")
+  @@index([perceptualHash], map: "idx_evidence_perceptual_hash")
+  @@index([fingerprintPrimary], map: "idx_evidence_fingerprint_primary")
+  @@index([signerDeviceKeyId], map: "idx_evidence_signer_device_key_id")
+  @@index([registrationServerTime], map: "idx_evidence_registration_server_time")
+  @@index([mediaType, status], map: "idx_evidence_media_type_status")
+  @@index([chainParentEvidenceId], map: "idx_evidence_chain_parent")
+  @@index([requestId], map: "idx_evidence_request_id")
+  @@index([idempotencyKey], map: "idx_evidence_idempotency_key")
+  @@map("evidences")
+}
+
+model OwnershipClaim {
+  ownershipClaimId         String               @id @default(uuid()) @map("ownership_claim_id")
+  evidenceId               String               @map("evidence_id")
+  claimantDeviceId         String?              @map("claimant_device_id")
+  claimantPublicKeyReference String             @map("claimant_public_key_reference") @db.VarChar(191)
+  claimType                OwnershipClaimType   @map("claim_type")
+  claimStatement           String?              @map("claim_statement") @db.Text
+  signatureAlgorithm       String               @default("SHA256withECDSA") @map("signature_algorithm") @db.VarChar(64)
+  signature                String               @db.Text
+  status                   OwnershipClaimStatus @default(PENDING)
+  requestId                String?              @map("request_id") @db.VarChar(191)
+  createdAt                DateTime             @default(now()) @map("created_at")
+  updatedAt                DateTime             @updatedAt @map("updated_at")
+  revokedAt                DateTime?            @map("revoked_at")
+  metadata                 Json?
+
+  evidence                 Evidence             @relation(fields: [evidenceId], references: [evidenceId], onUpdate: Cascade, onDelete: Cascade)
+  claimantDevice           Device?              @relation(fields: [claimantDeviceId], references: [deviceId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([evidenceId], map: "idx_ownership_claims_evidence_id")
+  @@index([claimantDeviceId], map: "idx_ownership_claims_claimant_device_id")
+  @@index([status], map: "idx_ownership_claims_status")
+  @@index([claimType], map: "idx_ownership_claims_claim_type")
+  @@map("ownership_claims")
+}
+
+model Nonce {
+  nonceId        String    @id @default(uuid()) @map("nonce_id")
+  nonce          String    @db.VarChar(191)
+  deviceKeyId    String?   @map("device_key_id") @db.VarChar(191)
+  requestHash    String?   @map("request_hash") @db.Char(64)
+  requestId      String?   @map("request_id") @db.VarChar(191)
+  issuedAt       DateTime  @default(now()) @map("issued_at")
+  expiresAt      DateTime  @map("expires_at")
+  consumedAt     DateTime? @map("consumed_at")
+  metadata       Json?
+
+  device         Device?   @relation(fields: [deviceKeyId], references: [keyId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@unique([deviceKeyId, nonce], map: "uq_nonces_device_nonce")
+  @@index([nonce], map: "idx_nonces_nonce")
+  @@index([expiresAt], map: "idx_nonces_expires_at")
+  @@index([consumedAt], map: "idx_nonces_consumed_at")
+  @@map("nonces")
+}
+
+model IdempotencyKey {
+  idempotencyKeyId String    @id @default(uuid()) @map("idempotency_key_id")
+  key              String    @unique @db.VarChar(191)
+  scope            String    @db.VarChar(100)
+  requestHash      String    @map("request_hash") @db.Char(64)
+  requestId        String?   @map("request_id") @db.VarChar(191)
+  responseCode     Int?      @map("response_code")
+  responseBody     Json?     @map("response_body")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  expiresAt        DateTime  @map("expires_at")
+  lastSeenAt       DateTime? @map("last_seen_at")
+
+  @@index([scope], map: "idx_idempotency_keys_scope")
+  @@index([expiresAt], map: "idx_idempotency_keys_expires_at")
+  @@map("idempotency_keys")
+}
+
+model VerificationRecord {
+  verificationRecordId   String    @id @default(uuid()) @map("verification_record_id")
+  requestId              String?   @map("request_id") @db.VarChar(191)
+  mediaType              MediaType @map("media_type")
+  inputSha256Original    String?   @map("input_sha256_original") @db.Char(64)
+  inputCanonicalHash     String?   @map("input_canonical_hash") @db.Char(64)
+  inputPerceptualHash    String?   @map("input_perceptual_hash") @db.VarChar(128)
+  inputFingerprintProfile Json?    @map("input_fingerprint_profile")
+  matchedEvidenceId      String?   @map("matched_evidence_id")
+  matchedDeviceId        String?   @map("matched_device_id")
+  verdict                Json
+  transformationIndicators Json?   @map("transformation_indicators")
+  trustTier              DeviceTrustTier? @map("trust_tier")
+  verifiedAt             DateTime  @default(now()) @map("verified_at")
+  metadata               Json?
+
+  matchedEvidence        Evidence? @relation(fields: [matchedEvidenceId], references: [evidenceId], onUpdate: Cascade, onDelete: SetNull)
+  matchedDevice          Device?   @relation(fields: [matchedDeviceId], references: [deviceId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([requestId], map: "idx_verification_records_request_id")
+  @@index([inputSha256Original], map: "idx_verification_records_input_sha256_original")
+  @@index([inputCanonicalHash], map: "idx_verification_records_input_canonical_hash")
+  @@index([matchedEvidenceId], map: "idx_verification_records_matched_evidence_id")
+  @@index([verifiedAt], map: "idx_verification_records_verified_at")
+  @@map("verification_records")
+}
+
+model AuditLog {
+  auditLogId     BigInt    @id @default(autoincrement()) @map("audit_log_id")
+  requestId      String?   @map("request_id") @db.VarChar(191)
+  action         String    @db.VarChar(100)
+  entityType     String    @map("entity_type") @db.VarChar(100)
+  entityId       String?   @map("entity_id") @db.VarChar(191)
+  actorDeviceId  String?   @map("actor_device_id")
+  actorKeyId     String?   @map("actor_key_id") @db.VarChar(191)
+  ipAddress      String?   @map("ip_address") @db.VarChar(64)
+  userAgent      String?   @map("user_agent") @db.VarChar(512)
+  details        Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  actorDevice    Device?   @relation(fields: [actorDeviceId], references: [deviceId], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([requestId], map: "idx_audit_logs_request_id")
+  @@index([entityType, entityId], map: "idx_audit_logs_entity")
+  @@index([actorDeviceId], map: "idx_audit_logs_actor_device_id")
+  @@index([createdAt], map: "idx_audit_logs_created_at")
+  @@map("audit_logs")
+}
