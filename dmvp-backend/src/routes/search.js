@@ -236,13 +236,18 @@ router.get(
       }
 
       // Find related: same media type, chain parent/children
+      const childrenIds = await prisma.evidence.findMany({
+        where: { chainParentEvidenceId: evidenceId },
+        select: { evidenceId: true },
+      }).then(children => children.map(c => c.evidenceId));
+
       const related = await prisma.evidence.findMany({
         where: {
           mediaType: evidence.mediaType,
           NOT: { evidenceId },
           OR: [
             { chainParentEvidenceId: evidenceId },
-            { evidenceId: { in: await getChildrenIds(evidenceId) } },
+            { evidenceId: { in: childrenIds } },
           ],
         },
         take: maxResults,
@@ -275,14 +280,5 @@ router.get(
     }
   }
 );
-
-// Helper: Get child evidence IDs
-async function getChildrenIds(parentId) {
-  const children = await prisma.evidence.findMany({
-    where: { chainParentEvidenceId: parentId },
-    select: { evidenceId: true },
-  });
-  return children.map(c => c.evidenceId);
-}
 
 module.exports = router;
