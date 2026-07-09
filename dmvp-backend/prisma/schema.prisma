@@ -268,3 +268,12 @@ model AuditLog {
   @@index([createdAt], map: "idx_audit_logs_created_at")
   @@map("audit_logs")
 }
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  password_hash String
+  name          String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+}
