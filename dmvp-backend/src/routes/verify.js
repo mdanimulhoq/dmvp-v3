@@ -1,126 +1,266 @@
 /**
- * src/routes/verify.js
+ * @file src/routes/verify.js
+ * @description DMVP v3.0 — Verification Routes
  *
- * Express routes for media verification.
  * Endpoints:
- *   POST /verify - Submit verification request and receive multi-axis verdict
- *   GET /verify/policy - Retrieve active verification policy metadata
+ *   GET  /verify         — Verification service info
+ *   POST /verify         — Submit verification request
+ *   GET  /verify/policy  — Retrieve active verification policy metadata
  *
- * All routes enforce authentication, rate limiting, and input validation.
+ * @module routes/verify
+ * @version dmvp-v3.0.0
  */
+
+'use strict';
 
 const express = require('express');
 const router = express.Router();
 
-// Middleware — safe require with fallback
-function safeRequire(path, exportName) {
-  try {
-    const mod = require(path);
-    if (exportName && mod[exportName]) return mod[exportName];
-    if (typeof mod === 'function') return mod;
-    return mod;
-  } catch (e) {
-    console.warn(`[verify.js] Warning: could not load ${path} — ${e.message}`);
-    return (req, res, next) => next();
-  }
+const { authenticate } = require('../middleware/auth');
+const { verifyRateLimit } = require('../middleware/rateLimit');
+const { prisma } = require('../config/database');
+
+const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildError(status, errorCode, message, detail = null, req = null) {
+  return {
+    status,
+    errorCode,
+    message,
+    detail,
+    policy_version: POLICY_VERSION,
+    request_id: req?.requestId || 'unknown',
+  };
 }
 
-// Auth middleware
-const authenticate = safeRequire('../middleware/auth', 'authenticate');
+function isValidSHA256(str) {
+  return typeof str === 'string' && /^[0-9a-f]{64}$/i.test(str);
+}
 
-// Rate limiter — use verifyRateLimit from rateLimit.js
-const rateLimitMod = safeRequire('../middleware/rateLimit');
-const verifyRateLimit = rateLimitMod.verifyRateLimit || ((req, res, next) => next());
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /verify
+// Verification service info
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Validation
-const validationMod = safeRequire('../middleware/validation');
-const validateVerificationRequest = validationMod.validateVerificationRequest || ((req, res, next) => next());
+router.get(
+  '/',
+  authenticate,
+  async (req, res) => {
+    return res.status(200).json({
+      service: 'DMVP Verification',
+      version: '3.0.0',
+      endpoints: {
+        verify: 'POST /',
+        policy: 'GET /policy',
+      },
+      policy_version: POLICY_VERSION,
+      request_id: req.requestId,
+    });
+  }
+);
 
-// Service
-const { verifyMedia } = require('../services/verifyService');
+// ─────────────────────────────────────────────────────────────────────────────
+// POST /verify
+// Submit a verification request and receive multi-axis verdict
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Logger
-const logger = console;
-
-/**
- * POST /verify
- *
- * Submit a verification request.
- */
 router.post(
   '/',
   authenticate,
-  verifyRateLimit, // FIXED: use verifyRateLimit instead of rateLimiter(...)
-  validateVerificationRequest,
+  verifyRateLimit,
   async (req, res, next) => {
     try {
-      const request = req.body;
-      const verdict = await verifyMedia(request);
+      const {
+        sha256,
+        canonicalMediaHash,
+        perceptualHash,
+        fingerprintProfile,
+        mediaType,
+        verificationMode,
+      } = req.body;
 
-      logger.info(`Verification completed for sha256: ${request.sha256}, mode: ${request.verification_mode || 'standard'}`);
+      // ── Validation ────────────────────────────────────────────────────────
+      if (!sha256 || !isValidSHA256(sha256)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'sha256 must be a 64-character hex string', null, req)
+        );
+      }
 
-      res.json({
-        ...verdict,
-        policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-        request_id: req.requestId || 'unknown'
+      if (!mediaType || !['IMAGE', 'VIDEO'].includes(mediaType.toUpperCase())) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'mediaType must be IMAGE or VIDEO', null, req)
+        );
+      }
+
+      const mode = (verificationMode || 'standard').toLowerCase();
+      if (!['fast', 'standard', 'deep'].includes(mode)) {
+        return res.status(400).json(
+          buildError(400, 'VALIDATION_ERROR', 'verificationMode must be fast, standard, or deep', null, req)
+        );
+      }
+
+      // ── Stage 1: Exact hash lookup ────────────────────────────────────────
+      const exactMatch = await prisma.evidence.findFirst({
+        where: {
+          sha256Original: sha256.toLowerCase(),
+        },
+        include: {
+          signerDevice: {
+            select: {
+              deviceId: true,
+              keyId: true,
+              trustTier: true,
+              attestationStatus: true,
+              revokedAt: true,
+            },
+          },
+        },
+      });
+
+      // ── Build verdict ─────────────────────────────────────────────────────
+      let integrityVerdict = 'NO_EXACT_MATCH';
+      let provenanceVerdict = 'NO_TRUSTED_PROVENANCE';
+      let similarityVerdict = 'NO_RELIABLE_SIMILARITY';
+      let evidenceQuality = 'LOW';
+      let trustTier = 'TIER_D';
+      let matchedEvidence = null;
+      let transformationIndicators = [];
+
+      if (exactMatch) {
+        integrityVerdict = 'EXACT_MATCH';
+        matchedEvidence = {
+          evidenceId: exactMatch.evidenceId,
+          mediaType: exactMatch.mediaType,
+          registrationServerTime: exactMatch.registrationServerTime,
+          signerDeviceKeyId: exactMatch.signerDeviceKeyId,
+        };
+
+        // Provenance check
+        if (exactMatch.signerDevice) {
+          trustTier = exactMatch.signerDevice.trustTier;
+          
+          if (exactMatch.signerDevice.revokedAt) {
+            provenanceVerdict = 'NO_TRUSTED_PROVENANCE';
+            evidenceQuality = 'LOW';
+          } else if (exactMatch.signerDevice.attestationStatus === 'VALID') {
+            provenanceVerdict = 'SIGNED_TRUSTED_DEVICE';
+            evidenceQuality = trustTier === 'TIER_A' ? 'HIGH_EVIDENTIARY_STRENGTH' : 'MODERATE';
+          } else {
+            provenanceVerdict = 'ATTESTATION_MISSING';
+            evidenceQuality = 'MODERATE';
+          }
+        }
+      }
+
+      // ── Stage 2: Similarity search (if no exact match and not fast mode) ──
+      if (!exactMatch && mode !== 'fast' && perceptualHash) {
+        const candidates = await prisma.evidence.findMany({
+          where: {
+            perceptualHash: {
+              startsWith: perceptualHash.substring(0, 8),
+            },
+            mediaType: mediaType.toUpperCase(),
+          },
+          take: 10,
+          include: {
+            signerDevice: {
+              select: {
+                deviceId: true,
+                keyId: true,
+                trustTier: true,
+                attestationStatus: true,
+                revokedAt: true,
+              },
+            },
+          },
+        });
+
+        if (candidates.length > 0) {
+          similarityVerdict = 'WEAK_SIMILARITY';
+        }
+      }
+
+      // ── Record verification event ─────────────────────────────────────────
+      await prisma.verificationRecord.create({
+        data: {
+          mediaType: mediaType.toUpperCase(),
+          inputSha256Original: sha256.toLowerCase(),
+          inputCanonicalHash: canonicalMediaHash || null,
+          inputPerceptualHash: perceptualHash || null,
+          inputFingerprintProfile: fingerprintProfile || null,
+          matchedEvidenceId: exactMatch?.evidenceId || null,
+          matchedDeviceId: exactMatch?.signerDevice?.deviceId || null,
+          verdict: {
+            integrity: integrityVerdict,
+            provenance: provenanceVerdict,
+            similarity: similarityVerdict,
+            evidenceQuality,
+            trustTier,
+          },
+          transformationIndicators: transformationIndicators,
+          trustTier: trustTier,
+          requestId: req.requestId,
+        },
+      });
+
+      console.info(`[Verify] ${integrityVerdict} for ${sha256.substring(0, 16)}... mode=${mode}`);
+
+      return res.status(200).json({
+        integrity_verdict: integrityVerdict,
+        provenance_verdict: provenanceVerdict,
+        similarity_verdict: similarityVerdict,
+        evidence_quality: evidenceQuality,
+        trust_tier: trustTier,
+        transformation_indicators: transformationIndicators,
+        matched_evidence: matchedEvidence,
+        verification_mode: mode,
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
       });
     } catch (error) {
-      if (error.message && error.message.includes('required')) {
-        return res.status(422).json({
-          error_code: 'VALIDATION_ERROR',
-          message: error.message,
-          detail: null,
-          policy_version: process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0',
-          request_id: req.requestId || 'unknown'
-        });
-      }
       next(error);
     }
   }
 );
 
-/**
- * GET /verify/policy
- */
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /verify/policy
+// Retrieve active verification policy metadata
+// ─────────────────────────────────────────────────────────────────────────────
+
 router.get(
   '/policy',
   authenticate,
-  async (req, res, next) => {
-    try {
-      const policy = {
-        policy_version: 'dmvp-v3.0.0',
-        supported_modes: ['fast', 'standard', 'deep'],
-        default_mode: 'standard',
-        similarity_thresholds: {
-          strong_derivative: 0.95,
-          probable_derivative: 0.80,
-          weak_similarity: 0.50,
-        },
-        integrity_checks: ['sha256', 'canonical_hash'],
-        provenance_checks: ['device_trust_tier', 'attestation'],
-        timestamp_modes: ['standard', 'enhanced', 'high_assurance'],
-        algorithm_versions: {
-          fingerprint: 'v1.0',
-          similarity: 'v1.0',
-        },
-        evidence_quality_mapping: {
-          TIER_A: 'HIGH_EVIDENTIARY_STRENGTH',
-          TIER_B: 'MODERATE_EVIDENTIARY_STRENGTH',
-          TIER_C: 'LOW_EVIDENTIARY_STRENGTH',
-          TIER_D: 'LOW_EVIDENTIARY_STRENGTH',
-        },
-        warnings: {
-          fast_mode: 'Reduced accuracy for similarity; exact integrity still verified.',
-          attestation_missing: 'Device attestation missing or degraded.',
-        },
-      };
-      res.json({
-        ...policy,
-        request_id: req.requestId || 'unknown'
-      });
-    } catch (error) {
-      next(error);
-    }
+  async (req, res) => {
+    return res.status(200).json({
+      policy_version: POLICY_VERSION,
+      protocol_version: process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0',
+      supported_modes: ['fast', 'standard', 'deep'],
+      default_mode: 'standard',
+      similarity_thresholds: {
+        strong_derivative: 0.95,
+        probable_derivative: 0.80,
+        weak_similarity: 0.50,
+      },
+      integrity_checks: ['sha256', 'canonical_hash'],
+      provenance_checks: ['device_trust_tier', 'attestation'],
+      timestamp_modes: ['standard', 'enhanced', 'high_assurance'],
+      algorithm_versions: {
+        fingerprint: 'v1.0',
+        similarity: 'v1.0',
+      },
+      evidence_quality_mapping: {
+        TIER_A: 'HIGH_EVIDENTIARY_STRENGTH',
+        TIER_B: 'MODERATE_EVIDENTIARY_STRENGTH',
+        TIER_C: 'LOW_EVIDENTIARY_STRENGTH',
+        TIER_D: 'LOW_EVIDENTIARY_STRENGTH',
+      },
+      request_id: req.requestId,
+    });
   }
 );
 
