@@ -16,16 +16,12 @@ import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import com.dmvp.app.data.remote.ApiService
-import com.dmvp.app.data.remote.RetrofitClient
 import com.dmvp.app.data.repository.DMVPRepository
-import com.dmvp.app.security.DeviceKeyManager
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import retrofit2.Retrofit
 import javax.inject.Singleton
 
 private const val PREFERENCES_NAME = "dmvp_preferences"
@@ -36,43 +32,15 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 object AppModule {
 
     /**
-     * Provide Retrofit instance.
-     */
-    @Singleton
-    @Provides
-    fun provideRetrofit(@ApplicationContext context: Context): Retrofit {
-        return RetrofitClient.getRetrofitInstance(context)
-    }
-
-    /**
-     * Provide API service.
-     */
-    @Singleton
-    @Provides
-    fun provideApiService(retrofit: Retrofit): ApiService {
-        return retrofit.create(ApiService::class.java)
-    }
-
-    /**
      * Provide repository.
+     * DMVPRepository only requires context; all other dependencies are handled internally.
      */
     @Singleton
     @Provides
     fun provideDMVPRepository(
-        apiService: ApiService,
-        @ApplicationContext context: Context,
-        deviceKeyManager: DeviceKeyManager
+        @ApplicationContext context: Context
     ): DMVPRepository {
-        return DMVPRepository(apiService, context, deviceKeyManager)
-    }
-
-    /**
-     * Provide device key manager.
-     */
-    @Singleton
-    @Provides
-    fun provideDeviceKeyManager(@ApplicationContext context: Context): DeviceKeyManager {
-        return DeviceKeyManager(context)
+        return DMVPRepository(context)
     }
 
     /**
