@@ -57,8 +57,8 @@ class DMVPApplication : Application() {
             // Check if Timber is available
             val timberClass = Class.forName("timber.log.Timber")
             val plantMethod = timberClass.getMethod("plant", Any::class.java)
-            // Create debug tree
-            val debugTreeClass = Class.forName("timber.log.Timber$DebugTree")
+            // Create debug tree using the inner class name with escaped dollar sign
+            val debugTreeClass = Class.forName("timber.log.Timber\$DebugTree")
             val debugTree = debugTreeClass.newInstance()
             plantMethod.invoke(null, debugTree)
             Log.d(TAG, "Timber logging initialized")
