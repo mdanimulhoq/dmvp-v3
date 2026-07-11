@@ -42,7 +42,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmvp.app.data.model.*
 import com.dmvp.app.ui.theme.*
-import com.dmvp.app.utils.Constants
 
 /**
  * CEEPreview composable.
@@ -108,7 +107,7 @@ fun CEEPreview(
             CEEFieldRow(
                 label = "Media Type",
                 value = cee.mediaType,
-                icon = if (cee.mediaType == "image") Icons.Default.Image else Icons.Default.Video,
+                icon = if (cee.mediaType == "image") Icons.Default.Image else Icons.Default.Videocam,
                 onCopy = null
             )
             CEEFieldRow(
@@ -657,3 +656,4 @@ private fun CEEPreviewPreview() {
         }
     }
 }
+
