@@ -24,6 +24,7 @@
 
 package com.dmvp.app.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -37,13 +38,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dmvp.app.data.model.DeviceTrustTier
 import com.dmvp.app.ui.components.LoadingOverlay
+import com.dmvp.app.ui.components.LoadingState
 import com.dmvp.app.ui.components.TrustTierBadge
+import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.DeviceOperation
 import com.dmvp.app.ui.viewmodel.DeviceViewModel
@@ -54,6 +58,7 @@ import com.dmvp.app.ui.viewmodel.DeviceViewModel
  * @param onNavigateBack Callback to navigate back.
  * @param modifier Modifier for the screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DeviceScreen(
     onNavigateBack: () -> Unit,
@@ -155,7 +160,7 @@ fun DeviceScreen(
         }
     ) { paddingValues ->
         LoadingOverlay(
-            isLoading = uiState.isLoading && uiState.getOperationInProgress(),
+            isLoading = uiState.isLoading,
             message = when {
                 uiState.operation == DeviceOperation.ROTATING -> "Rotating device key..."
                 uiState.operation == DeviceOperation.REVOKING -> "Revoking device key..."
@@ -188,7 +193,8 @@ fun DeviceScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Error message
-                    if (uiState.error != null) {
+                    val currentError = uiState.error
+                    if (currentError != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -210,7 +216,7 @@ fun DeviceScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = uiState.error,
+                                    text = currentError,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Error,
                                     modifier = Modifier.weight(1f)
@@ -231,7 +237,8 @@ fun DeviceScreen(
                     }
 
                     // Success message
-                    if (uiState.successMessage != null) {
+                    val currentSuccessMessage = uiState.successMessage
+                    if (currentSuccessMessage != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -253,7 +260,7 @@ fun DeviceScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = uiState.successMessage,
+                                    text = currentSuccessMessage,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Success,
                                     modifier = Modifier.weight(1f)
@@ -447,7 +454,7 @@ private fun CurrentDeviceInfo(
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
-                attestationSummary.extra?.take(2)?.forEach { (key, value) ->
+                attestationSummary.extra?.entries?.take(2)?.forEach { (key, value) ->
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -624,7 +631,7 @@ private fun DeviceListItem(
 /**
  * Recovery flow input.
  */
-@Composable
+ @Composable
 private fun RecoveryFlow(
     oldDeviceKeyId: String,
     onOldKeyIdChange: (String) -> Unit,
