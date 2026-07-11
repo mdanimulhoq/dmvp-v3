@@ -9,6 +9,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.devtools.ksp")
     id("dagger.hilt.android.plugin")
 }
@@ -65,10 +66,6 @@ android {
         viewBinding = false
         // Enable build config for version info
         buildConfig = true
-    }
-
-    composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14"
     }
 
     packaging {
