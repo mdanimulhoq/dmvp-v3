@@ -13,10 +13,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-// Private color schemes for Material3
 private val DarkColorScheme = darkColorScheme(
     primary = DeepPurple700,
     onPrimary = Color.White,
@@ -85,14 +85,12 @@ private val LightColorScheme = lightColorScheme(
 
 @Composable
 fun DMVPTheme(
-    darkTheme: Boolean = true, // Default to dark theme
+    darkTheme: Boolean = true,
     content: @Composable () -> Unit
 ) {
-    // Force dark theme by default, but allow override
-    val actualDark = darkTheme // always true unless user passes false
+    val actualDark = darkTheme
     val colorScheme = if (actualDark) DarkColorScheme else LightColorScheme
 
-    // Set the status bar and navigation bar colors to match the background
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
@@ -101,7 +99,6 @@ fun DMVPTheme(
                 isAppearanceLightStatusBars = !actualDark
                 isAppearanceLightNavigationBars = !actualDark
             }
-            // Set navigation bar color
             window.navigationBarColor = if (actualDark) {
                 androidx.core.graphics.ColorUtils.blendARGB(
                     DarkBackground.toArgb(),
