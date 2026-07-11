@@ -3,23 +3,6 @@
  *
  * HomeScreen for DMVP v3.0 Android app.
  * Serves as the main dashboard with quick access to all features.
- *
- * Features:
- *   - App header with logo and device trust tier status
- *   - Quick action cards: Register, Verify, Search, Device
- *   - Recent activity / stats placeholder
- *   - Dark theme optimized with deep purple and cyan accent
- *
- * Navigation destinations:
- *   - Register: Navigate to capture/register flow
- *   - Verify: Navigate to verify flow
- *   - Search: Navigate to search flow
- *   - Device: Navigate to device management
- *
- * Uses:
- *   - DMVPRepository for device status
- *   - TrustTierBadge for displaying device trust tier
- *   - ViewModel for state management (optional, we'll use a simple state)
  */
 
 package com.dmvp.app.ui.screens
@@ -47,19 +30,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmvp.app.data.model.DeviceTrustTier
+import com.dmvp.app.data.model.getDisplayName
 import com.dmvp.app.ui.components.TrustTierBadge
 import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
 
-/**
- * HomeScreen composable.
- *
- * @param onNavigateToCapture Callback to navigate to capture screen.
- * @param onNavigateToVerify Callback to navigate to verify screen.
- * @param onNavigateToSearch Callback to navigate to search screen.
- * @param onNavigateToDevice Callback to navigate to device management screen.
- * @param modifier Modifier for the screen.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
@@ -69,8 +44,8 @@ fun HomeScreen(
     onNavigateToDevice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Simulate device trust tier (in production, get from ViewModel/repository)
     val trustTier = DeviceTrustTier.TIER_A // placeholder
+    val noOp: () -> Unit = {}
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -86,7 +61,6 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    // Device trust tier badge in top bar
                     TrustTierBadge(
                         trustTier = trustTier,
                         size = TrustTierBadgeSize.SMALL,
@@ -113,7 +87,6 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Welcome / Status
             item {
                 Column(
                     modifier = Modifier
@@ -140,7 +113,6 @@ fun HomeScreen(
                 }
             }
 
-            // Quick Action Grid
             item {
                 Text(
                     text = "Quick Actions",
@@ -168,14 +140,13 @@ fun HomeScreen(
                                 "verify" -> onNavigateToVerify
                                 "search" -> onNavigateToSearch
                                 "device" -> onNavigateToDevice
-                                else -> {}
+                                else -> noOp
                             }
                         )
                     }
                 }
             }
 
-            // Recent Activity / Stats (placeholder)
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -200,14 +171,13 @@ fun HomeScreen(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        // Placeholder stats
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
                             StatItem(label = "Registered", value = "0")
                             StatItem(label = "Verified", value = "0")
-                            StatItem(label = "Trust Tier", value = trustTier.getLabel())
+                            StatItem(label = "Trust Tier", value = trustTier.getDisplayName())
                         }
                         Divider(
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
@@ -224,7 +194,6 @@ fun HomeScreen(
                 }
             }
 
-            // Footer
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -240,9 +209,6 @@ fun HomeScreen(
     }
 }
 
-/**
- * Action card for quick actions.
- */
 @Composable
 private fun ActionCard(
     icon: ImageVector,
@@ -296,14 +262,9 @@ private fun ActionCard(
     }
 }
 
-/**
- * Stat item for activity stats.
- */
 @Composable
 private fun StatItem(label: String, value: String) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
             style = MaterialTheme.typography.titleMedium.copy(
@@ -320,9 +281,6 @@ private fun StatItem(label: String, value: String) {
     }
 }
 
-/**
- * Action item data class.
- */
 private data class ActionItem(
     val id: String,
     val icon: ImageVector,
@@ -331,9 +289,6 @@ private data class ActionItem(
     val color: Color
 )
 
-/**
- * List of quick action items.
- */
 private val actionItems = listOf(
     ActionItem(
         id = "register",
@@ -364,10 +319,6 @@ private val actionItems = listOf(
         color = Warning
     )
 )
-
-// ================================
-// Preview
-// ================================
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
