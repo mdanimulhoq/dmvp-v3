@@ -2,19 +2,6 @@
  * app/src/main/java/com/dmvp/app/ui/viewmodel/DeviceViewModel.kt
  *
  * ViewModel for the Device Management screen.
- * Handles device key lifecycle operations:
- *   - Viewing current device key info (trust tier, attestation, lineage)
- *   - Rotating to a new device key
- *   - Revoking a device key
- *   - Recovering device lineage after device loss
- *   - Listing known device keys
- *
- * Uses:
- *   - DMVPRepository for device operations
- *   - DeviceKeyManager for local key management
- *   - DataStore/Preferences for caching device state
- *
- * Provides detailed UI state for device management workflows.
  */
 
 package com.dmvp.app.ui.viewmodel
@@ -23,8 +10,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
-import com.dmvp.app.data.repository.RepositoryResult
 import com.dmvp.app.data.repository.DMVPRepository
+import com.dmvp.app.data.repository.Result
 import com.dmvp.app.security.DeviceKeyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,21 +23,10 @@ import javax.inject.Inject
 
 private const val TAG = "DeviceViewModel"
 
-/**
- * Device management operation type.
- */
 enum class DeviceOperation {
-    NONE,
-    VIEWING,
-    ROTATING,
-    REVOKING,
-    RECOVERING,
-    LISTING
+    NONE, VIEWING, ROTATING, REVOKING, RECOVERING, LISTING
 }
 
-/**
- * UI state for the Device screen.
- */
 data class DeviceUiState(
     val isLoading: Boolean = false,
     val currentDeviceKeyId: String? = null,
@@ -77,9 +53,6 @@ data class DeviceUiState(
     val progress: Float = 0f
 )
 
-/**
- * ViewModel for managing device keys.
- */
 @HiltViewModel
 class DeviceViewModel @Inject constructor(
     private val repository: DMVPRepository
@@ -92,16 +65,12 @@ class DeviceViewModel @Inject constructor(
         loadDeviceInfo()
     }
 
-    /**
-     * Load current device information.
-     */
     fun loadDeviceInfo() {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, error = null, errorCode = null) }
 
-                // Get local device info
-                val deviceKeyId = repository.getDeviceKeyId() // This would be a function in repository
+                val deviceKeyId = repository.getDeviceKeyId() // placeholder
                 val publicKey = repository.getPublicKey()
                 val trustTier = repository.getCachedTrustTier()
                 val isHardwareBacked = DeviceKeyManager.isHardwareBacked()
@@ -127,10 +96,7 @@ class DeviceViewModel @Inject constructor(
                         } else null
                     )
                 }
-
-                // Also fetch device list from server
                 loadDeviceList()
-
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to load device info", e)
                 _uiState.update {
@@ -144,21 +110,13 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Load device list from server.
-     */
     fun loadDeviceList() {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true) }
-
-                val result = repository.listDeviceKeys(
-                    page = 1,
-                    limit = 100
-                )
-
+                val result = repository.listDeviceKeys(page = 1, limit = 100)
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -169,7 +127,7 @@ class DeviceViewModel @Inject constructor(
                             )
                         }
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -192,17 +150,13 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Select a device key to view details.
-     */
     fun selectDeviceKey(deviceKeyId: String) {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true) }
-
                 val result = repository.getDeviceKeyInfo(deviceKeyId)
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -213,7 +167,7 @@ class DeviceViewModel @Inject constructor(
                             )
                         }
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -236,17 +190,11 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Start device rotation flow.
-     */
     fun startRotation() {
         val currentId = uiState.value.currentDeviceKeyId
         if (currentId == null) {
             _uiState.update {
-                it.copy(
-                    error = "No current device key to rotate",
-                    errorCode = "INVALID_STATE"
-                )
+                it.copy(error = "No current device key to rotate", errorCode = "INVALID_STATE")
             }
             return
         }
@@ -262,27 +210,17 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Set new device key ID for rotation.
-     */
     fun setNewDeviceKeyId(id: String) {
         _uiState.update { it.copy(newDeviceKeyId = id) }
     }
 
-    /**
-     * Execute device rotation.
-     */
     fun executeRotation() {
         val state = uiState.value
         val oldKeyId = state.currentDeviceKeyId
         val newKeyId = state.newDeviceKeyId
-
         if (oldKeyId == null || newKeyId.isEmpty()) {
             _uiState.update {
-                it.copy(
-                    error = "Missing device key information",
-                    errorCode = "VALIDATION_ERROR"
-                )
+                it.copy(error = "Missing device key information", errorCode = "VALIDATION_ERROR")
             }
             return
         }
@@ -298,15 +236,10 @@ class DeviceViewModel @Inject constructor(
                         showConfirmDialog = false
                     )
                 }
-
-                // Generate new public key from Keystore
-                // In a real implementation, you'd generate a new key pair first.
-                // For MVP, we'll use the same key or generate a new one.
                 val newPublicKey = DeviceKeyManager.getPublicKey()
                 if (newPublicKey == null) {
                     throw Exception("Failed to get public key for new device")
                 }
-
                 val attestationSummary = DeviceKeyManager.getAttestationSummary()
                 val attestation = AttestationSummary(
                     valid = attestationSummary["valid"] as? Boolean ?: true,
@@ -316,7 +249,6 @@ class DeviceViewModel @Inject constructor(
                     rooted = false,
                     extra = attestationSummary.filterKeys { it !in listOf("valid", "hardware_backed", "platform", "appIntegrity", "rooted") }
                 )
-
                 _uiState.update { it.copy(progress = 0.4f) }
 
                 val result = repository.rotateDeviceKey(
@@ -324,9 +256,8 @@ class DeviceViewModel @Inject constructor(
                     newPublicKey = newPublicKey,
                     attestationSummary = attestation
                 )
-
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -340,11 +271,10 @@ class DeviceViewModel @Inject constructor(
                                 errorCode = null
                             )
                         }
-                        // Reload device info
                         loadDeviceInfo()
                         Log.i(TAG, "Device rotated successfully: $newKeyId")
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -369,17 +299,11 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Start device revocation flow.
-     */
     fun startRevocation() {
         val currentId = uiState.value.currentDeviceKeyId
         if (currentId == null) {
             _uiState.update {
-                it.copy(
-                    error = "No current device key to revoke",
-                    errorCode = "INVALID_STATE"
-                )
+                it.copy(error = "No current device key to revoke", errorCode = "INVALID_STATE")
             }
             return
         }
@@ -395,21 +319,8 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Execute device revocation.
-     */
     fun executeRevocation() {
-        val deviceKeyId = uiState.value.currentDeviceKeyId
-        if (deviceKeyId == null) {
-            _uiState.update {
-                it.copy(
-                    error = "No device key to revoke",
-                    errorCode = "INVALID_STATE"
-                )
-            }
-            return
-        }
-
+        val deviceKeyId = uiState.value.currentDeviceKeyId ?: return
         viewModelScope.launch {
             try {
                 _uiState.update {
@@ -420,10 +331,9 @@ class DeviceViewModel @Inject constructor(
                         showConfirmDialog = false
                     )
                 }
-
                 val result = repository.revokeDeviceKey(deviceKeyId)
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -434,7 +344,6 @@ class DeviceViewModel @Inject constructor(
                                 errorCode = null
                             )
                         }
-                        // Clear local device state if revoked key is current
                         if (deviceKeyId == uiState.value.currentDeviceKeyId) {
                             _uiState.update {
                                 it.copy(
@@ -447,7 +356,7 @@ class DeviceViewModel @Inject constructor(
                         loadDeviceList()
                         Log.i(TAG, "Device revoked successfully: $deviceKeyId")
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -472,9 +381,6 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Start device recovery flow.
-     */
     fun startRecovery() {
         _uiState.update {
             it.copy(
@@ -489,34 +395,21 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Set recovery old device key ID.
-     */
     fun setRecoveryOldDeviceKeyId(id: String) {
         _uiState.update { it.copy(recoveryOldDeviceKeyId = id) }
     }
 
-    /**
-     * Set recovery quorum proof.
-     */
     fun setRecoveryQuorum(quorum: String) {
         _uiState.update { it.copy(recoveryQuorum = quorum) }
     }
 
-    /**
-     * Execute device recovery.
-     */
     fun executeRecovery() {
         val state = uiState.value
         val oldKeyId = state.recoveryOldDeviceKeyId
         val quorum = state.recoveryQuorum
-
         if (oldKeyId.isEmpty()) {
             _uiState.update {
-                it.copy(
-                    error = "Old device key ID is required",
-                    errorCode = "VALIDATION_ERROR"
-                )
+                it.copy(error = "Old device key ID is required", errorCode = "VALIDATION_ERROR")
             }
             return
         }
@@ -531,14 +424,11 @@ class DeviceViewModel @Inject constructor(
                         errorCode = null
                     )
                 }
-
-                // Generate new key ID and public key
                 val newKeyId = "device_recovered_${System.currentTimeMillis()}"
                 val newPublicKey = DeviceKeyManager.getPublicKey()
                 if (newPublicKey == null) {
                     throw Exception("Failed to get public key for recovered device")
                 }
-
                 val attestationSummary = DeviceKeyManager.getAttestationSummary()
                 val attestation = AttestationSummary(
                     valid = attestationSummary["valid"] as? Boolean ?: true,
@@ -548,7 +438,6 @@ class DeviceViewModel @Inject constructor(
                     rooted = false,
                     extra = attestationSummary.filterKeys { it !in listOf("valid", "hardware_backed", "platform", "appIntegrity", "rooted") }
                 )
-
                 _uiState.update { it.copy(progress = 0.4f) }
 
                 val result = repository.recoverDeviceLineage(
@@ -558,9 +447,8 @@ class DeviceViewModel @Inject constructor(
                     attestationSummary = attestation,
                     recoveryQuorum = quorum.ifEmpty { null }
                 )
-
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -577,7 +465,7 @@ class DeviceViewModel @Inject constructor(
                         loadDeviceInfo()
                         Log.i(TAG, "Device recovered successfully: $newKeyId")
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -602,37 +490,22 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Dismiss confirmation dialog.
-     */
     fun dismissDialog() {
         _uiState.update { it.copy(showConfirmDialog = false) }
     }
 
-    /**
-     * Show confirmation dialog.
-     */
     fun showConfirmation() {
         _uiState.update { it.copy(showConfirmDialog = true) }
     }
 
-    /**
-     * Clear error state.
-     */
     fun clearError() {
         _uiState.update { it.copy(error = null, errorCode = null) }
     }
 
-    /**
-     * Clear success message.
-     */
     fun clearSuccess() {
         _uiState.update { it.copy(successMessage = null) }
     }
 
-    /**
-     * Reset operation state.
-     */
     fun resetOperation() {
         _uiState.update {
             it.copy(
@@ -648,49 +521,21 @@ class DeviceViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Refresh device data.
-     */
     fun refresh() {
         loadDeviceInfo()
     }
 }
 
-/**
- * Extension to get device key ID from repository (helper).
- * In a real implementation, this would be a function on the repository.
- */
-private fun DMVPRepository.getDeviceKeyId(): String? {
-    // This is a placeholder; in the actual repository, you'd have a method.
-    // We'll use the cached value from the ViewModel's state.
-    return null // Will be handled in loadDeviceInfo
-}
+private fun DMVPRepository.getDeviceKeyId(): String? = null
+private fun DMVPRepository.getPublicKey(): String? = null
 
-private fun DMVPRepository.getPublicKey(): String? {
-    return null
+fun DeviceUiState.isCurrentDeviceKey(keyId: String): Boolean = currentDeviceKeyId == keyId
+fun DeviceUiState.getTrustTierDisplay(): String = currentTrustTier ?: "Unknown"
+fun DeviceUiState.getTrustTierColor(): Int = when (currentTrustTier) {
+    "TIER_A" -> 0xFF00E676.toInt()
+    "TIER_B" -> 0xFFFFD740.toInt()
+    "TIER_C" -> 0xFFFF6D00.toInt()
+    "TIER_D" -> 0xFFE53935.toInt()
+    else -> 0xFFFFFFFF.toInt()
 }
-
-/**
- * Convenience extensions for DeviceUiState.
- */
-fun DeviceUiState.isCurrentDeviceKey(keyId: String): Boolean {
-    return currentDeviceKeyId == keyId
-}
-
-fun DeviceUiState.getTrustTierDisplay(): String {
-    return currentTrustTier ?: "Unknown"
-}
-
-fun DeviceUiState.getTrustTierColor(): Int {
-    return when (currentTrustTier) {
-        "TIER_A" -> 0xFF00E676.toInt()
-        "TIER_B" -> 0xFFFFD740.toInt()
-        "TIER_C" -> 0xFFFF6D00.toInt()
-        "TIER_D" -> 0xFFE53935.toInt()
-        else -> 0xFFFFFFFF.toInt()
-    }
-}
-
-fun DeviceUiState.getOperationInProgress(): Boolean {
-    return operation != DeviceOperation.NONE && isLoading
-}
+fun DeviceUiState.getOperationInProgress(): Boolean = operation != DeviceOperation.NONE && isLoading
