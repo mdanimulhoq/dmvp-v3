@@ -25,6 +25,7 @@
 package com.dmvp.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -47,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmvp.app.data.model.DeviceTrustTier
 import com.dmvp.app.ui.components.TrustTierBadge
+import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
 
 /**
@@ -58,6 +60,7 @@ import com.dmvp.app.ui.theme.*
  * @param onNavigateToDevice Callback to navigate to device management screen.
  * @param modifier Modifier for the screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToCapture: () -> Unit,
