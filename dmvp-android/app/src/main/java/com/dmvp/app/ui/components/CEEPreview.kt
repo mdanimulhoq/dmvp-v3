@@ -572,7 +572,7 @@ private fun AttestationPreview(attestation: AttestationSummary) {
                 )
             }
         }
-        attestation.extra?.take(2)?.forEach { (key, value) ->
+        attestation.extra?.entries?.take(2)?.forEach { (key, value) ->
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
