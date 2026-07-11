@@ -104,6 +104,8 @@ dependencies {
     // Kotlin Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    // Needed for ListenableFuture.await() used with CameraX's ProcessCameraProvider
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
 
     // Dagger Hilt for dependency injection
     implementation("com.google.dagger:hilt-android:2.48")
@@ -127,7 +129,7 @@ dependencies {
     // Image loading: Coil with Compose
     implementation("io.coil-kt:coil-compose:2.6.0")
 
-    // Perceptual hash (pHash) – we'll use a library or custom implementation.
+    // Perceptual hash (pHash) â€“ we'll use a library or custom implementation.
     // For Android, we can use the pHash library if available, but we'll use a custom utility.
     // We'll include a pure-Kotlin implementation or use OpenCV? But OpenCV is heavy.
     // For MVP, we'll rely on a simple implementation using Android's Bitmap and a custom hash.
