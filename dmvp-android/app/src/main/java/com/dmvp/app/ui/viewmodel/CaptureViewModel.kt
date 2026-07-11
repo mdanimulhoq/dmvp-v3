@@ -22,10 +22,14 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
+import com.dmvp.app.data.remote.EvidenceRecord
 import com.dmvp.app.data.repository.DMVPRepository
+import com.dmvp.app.data.repository.RepositoryResult
 import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.utils.CEEBuilder
+import com.dmvp.app.utils.DmvpConstants
+import com.dmvp.app.utils.VerificationConstants
 import com.dmvp.app.utils.currentIso8601
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -60,7 +64,7 @@ data class CaptureUiState(
     val privacyFlags: PrivacyFlags = PrivacyFlags(),
     val captureTimeClaim: String? = null,
     val geolocationClaim: GeolocationClaim? = null,
-    val verificationMode: String = Constants.MODE_STANDARD,
+    val verificationMode: String = VerificationConstants.MODE_STANDARD,
     val progress: Float = 0f,
     val validationMode: ValidationMode = ValidationMode.IDLE
 )
@@ -190,10 +194,10 @@ class CaptureViewModel @Inject constructor(
 
                 // Generate fingerprint
                 val fingerprint = when (mediaType) {
-                    Constants.MEDIA_TYPE_IMAGE -> {
+                    DmvpConstants.MEDIA_TYPE_IMAGE -> {
                         FingerprintUtils.generateImageFingerprint(file.absolutePath)
                     }
-                    Constants.MEDIA_TYPE_VIDEO -> {
+                    DmvpConstants.MEDIA_TYPE_VIDEO -> {
                         FingerprintUtils.generateVideoFingerprint(
                             file.absolutePath,
                             maxKeyframes = 10
@@ -209,7 +213,7 @@ class CaptureViewModel @Inject constructor(
                     val (deviceKeyId, publicKey) = deviceKeyResult.data
 
                     val cee = when (mediaType) {
-                        Constants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
+                        DmvpConstants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
                             context = file.context ?: return@launch,
                             imageFile = file,
                             deviceKeyId = deviceKeyId,
@@ -218,7 +222,7 @@ class CaptureViewModel @Inject constructor(
                             captureTimeClaim = uiState.value.captureTimeClaim,
                             geolocationClaim = uiState.value.geolocationClaim
                         )
-                        Constants.MEDIA_TYPE_VIDEO -> CEEBuilder.buildFromVideoFile(
+                        DmvpConstants.MEDIA_TYPE_VIDEO -> CEEBuilder.buildFromVideoFile(
                             context = file.context ?: return@launch,
                             videoFile = file,
                             deviceKeyId = deviceKeyId,
@@ -289,7 +293,7 @@ class CaptureViewModel @Inject constructor(
 
                 val result = repository.registerMedia(
                     file = file,
-                    mediaType = state.mediaType ?: Constants.MEDIA_TYPE_IMAGE,
+                    mediaType = state.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE,
                     privacyFlags = state.privacyFlags,
                     captureTimeClaim = state.captureTimeClaim,
                     geolocationClaim = state.geolocationClaim
