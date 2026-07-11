@@ -1,30 +1,27 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/theme/Type.kt
  *
- * Typography definitions for DMVP v3.0 Android app.
+ * Typography and shape definitions for DMVP v3.0 Android app.
  * Clean, professional, forensic-style typography with good readability.
- * Uses Material3 typography with customizations.
+ * Uses Material3 typography and shapes with customizations.
  */
 
 package com.dmvp.app.ui.theme
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Use system fonts by default, but optionally add custom fonts.
-// For a forensic/professional look, we could use Roboto Mono for monospace,
-// but we'll keep it simple with system fonts.
-// We'll define a monospace font family for code-like elements.
 val MonospaceFont = FontFamily.Monospace
 
-// Define the app typography based on Material3 defaults but with adjustments.
 val DMVPTypography = Typography(
-    // Display styles (large headlines)
     displayLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Bold,
@@ -46,8 +43,6 @@ val DMVPTypography = Typography(
         lineHeight = 44.sp,
         letterSpacing = 0.sp,
     ),
-
-    // Headline styles (section titles)
     headlineLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.SemiBold,
@@ -69,8 +64,6 @@ val DMVPTypography = Typography(
         lineHeight = 32.sp,
         letterSpacing = 0.sp,
     ),
-
-    // Title styles (subheadings)
     titleLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
@@ -92,8 +85,6 @@ val DMVPTypography = Typography(
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
     ),
-
-    // Body styles (main content)
     bodyLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Normal,
@@ -115,8 +106,6 @@ val DMVPTypography = Typography(
         lineHeight = 16.sp,
         letterSpacing = 0.4.sp,
     ),
-
-    // Label styles (UI elements, buttons, captions)
     labelLarge = TextStyle(
         fontFamily = FontFamily.Default,
         fontWeight = FontWeight.Medium,
@@ -140,9 +129,14 @@ val DMVPTypography = Typography(
     ),
 )
 
-// Additional custom text styles used throughout the app.
-// These are not part of Material3 Typography but can be defined as extensions.
-// We'll define them as constants for reuse.
+// Custom shapes used by MaterialTheme in Theme.kt
+val Shapes = Shapes(
+    extraSmall = RoundedCornerShape(4.dp),
+    small = RoundedCornerShape(8.dp),
+    medium = RoundedCornerShape(12.dp),
+    large = RoundedCornerShape(16.dp),
+    extraLarge = RoundedCornerShape(28.dp)
+)
 
 val ForensicTextStyle = TextStyle(
     fontFamily = FontFamily.Monospace,
