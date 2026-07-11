@@ -36,6 +36,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.video.*
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -69,6 +70,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import kotlinx.coroutines.guava.await
 
 private const val TAG = "MediaPicker"
 private const val FILE_PROVIDER_AUTHORITY = "${BuildConfig.APPLICATION_ID}.fileprovider"
@@ -218,7 +220,7 @@ private fun MediaPickerOption(
 /**
  * Camera view composable using CameraX.
  */
-@Composable
+ @Composable
 private fun CameraView(
     context: Context,
     mediaType: MediaPickerType,
@@ -508,7 +510,7 @@ private fun captureMedia(
 /**
  * Launch gallery picker.
  */
-private fun launchGalleryPicker(
+ private fun launchGalleryPicker(
     context: Context,
     mediaType: MediaPickerType,
     onResult: (MediaPickerResult) -> Unit
