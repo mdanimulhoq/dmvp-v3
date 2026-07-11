@@ -76,9 +76,9 @@ class DMVPApplication : Application() {
      */
     private fun initializeNetwork() {
         try {
-            // Initialize RetrofitClient with application context
+            // Initialize RetrofitClient
             // This will set up the base URL, interceptors, etc.
-            com.dmvp.app.data.remote.RetrofitClient.init(this)
+            com.dmvp.app.data.remote.RetrofitClient.init()
             Log.d(TAG, "RetrofitClient initialized")
         } catch (e: Exception) {
             Log.e(TAG, "Failed to initialize RetrofitClient", e)
