@@ -33,15 +33,21 @@ jobs:
       - name: Build Debug APK
         run: |
           cd dmvp-android
-          gradle clean assembleDebug --stacktrace --info > build.log 2>&1 || echo "BUILD_FAILED=true" >> $GITHUB_ENV
+          set +e
+          gradle clean assembleDebug --stacktrace --info > build.log 2>&1
+          GRADLE_EXIT=$?
+          if [ $GRADLE_EXIT -ne 0 ]; then
+            echo "BUILD_FAILED=true" >> $GITHUB_ENV
+          fi
           echo "---- LINES MENTIONING .kt FILES NEAR THE CRASH ----"
-          grep -n "\.kt" build.log | head -60
+          grep -n "\.kt" build.log | head -60 || true
           echo "---- 40 LINES BEFORE/AFTER THE CLASSCASTEXCEPTION ----"
-          grep -n -B 40 -A 10 "ClassCastException" build.log
+          grep -n -B 40 -A 10 "ClassCastException" build.log || echo "(no ClassCastException found)"
           echo "---- REAL COMPILER ERRORS (if any) ----"
           grep -n "^e:" build.log || echo "No e: lines found"
           echo "---- LAST 150 LINES OF LOG ----"
           tail -150 build.log
+          exit 0
 
       - name: Fail if build failed
         if: env.BUILD_FAILED == 'true'
