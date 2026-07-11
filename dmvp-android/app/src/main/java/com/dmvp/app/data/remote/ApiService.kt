@@ -16,6 +16,7 @@ package com.dmvp.app.data.remote
 
 import com.dmvp.app.data.model.*
 import com.dmvp.app.utils.ApiConstants
+import com.google.gson.annotations.SerializedName
 import retrofit2.http.*
 
 /**
