@@ -151,8 +151,9 @@ fun LoadingOverlay(
                                 AnimatedContent(
                                     targetState = true,
                                     transitionSpec = {
-                                        fadeIn(animationSpec = tween(300)) +
-                                                scaleIn(initialScale = 0.5f, animationSpec = spring())
+                                        (fadeIn(animationSpec = tween(300)) +
+                                                scaleIn(initialScale = 0.5f, animationSpec = spring()))
+                                            .togetherWith(fadeOut(animationSpec = tween(150)))
                                     }
                                 ) {
                                     Icon(
@@ -167,8 +168,9 @@ fun LoadingOverlay(
                                 AnimatedContent(
                                     targetState = true,
                                     transitionSpec = {
-                                        fadeIn(animationSpec = tween(300)) +
-                                                scaleIn(initialScale = 0.5f, animationSpec = spring())
+                                        (fadeIn(animationSpec = tween(300)) +
+                                                scaleIn(initialScale = 0.5f, animationSpec = spring()))
+                                            .togetherWith(fadeOut(animationSpec = tween(150)))
                                     }
                                 ) {
                                     Icon(
