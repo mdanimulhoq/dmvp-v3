@@ -33,9 +33,25 @@ jobs:
       - name: Build Debug APK
         run: |
           cd dmvp-android
-          gradle clean assembleDebug
+          gradle clean assembleDebug --stacktrace --info > build.log 2>&1 || echo "BUILD_FAILED=true" >> $GITHUB_ENV
+          echo "---- REAL COMPILER ERRORS (if any) ----"
+          grep -n "^e:" build.log || echo "No e: lines found"
+          echo "---- LAST 150 LINES OF LOG ----"
+          tail -150 build.log
+
+      - name: Fail if build failed
+        if: env.BUILD_FAILED == 'true'
+        run: exit 1
+
+      - name: Upload full build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: dmvp-android/build.log
 
       - name: Upload APK
+        if: env.BUILD_FAILED != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: dmvp-debug-apk
