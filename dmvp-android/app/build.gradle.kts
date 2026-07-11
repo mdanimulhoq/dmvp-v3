@@ -90,6 +90,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     // For dark theme support and theming
     implementation("androidx.compose.material3:material3-window-size-class")
+    // Foundation (clickable, animations, layout building blocks)
+    implementation("androidx.compose.foundation:foundation")
+    implementation("androidx.compose.animation:animation")
 
     // Navigation Compose
     implementation("androidx.navigation:navigation-compose:2.7.6")
@@ -111,6 +114,7 @@ dependencies {
     implementation("androidx.camera:camera-camera2:1.3.1")
     implementation("androidx.camera:camera-lifecycle:1.3.1")
     implementation("androidx.camera:camera-view:1.3.1")
+    implementation("androidx.camera:camera-video:1.3.1")
 
     // Networking: Retrofit + OkHttp + Gson
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
