@@ -25,10 +25,13 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
+import com.dmvp.app.data.remote.SearchResponse
+import com.dmvp.app.data.remote.RelatedEvidenceResponse
 import com.dmvp.app.data.repository.DMVPRepository
+import com.dmvp.app.data.repository.RepositoryResult
 import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.utils.DmvpConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -142,10 +145,10 @@ class SearchViewModel @Inject constructor(
 
                 // Generate fingerprint (for similarity)
                 val fingerprint = when (mediaType) {
-                    Constants.MEDIA_TYPE_IMAGE -> {
+                    DmvpConstants.MEDIA_TYPE_IMAGE -> {
                         FingerprintUtils.generateImageFingerprint(file.absolutePath)
                     }
-                    Constants.MEDIA_TYPE_VIDEO -> {
+                    DmvpConstants.MEDIA_TYPE_VIDEO -> {
                         FingerprintUtils.generateVideoFingerprint(file.absolutePath)
                     }
                     else -> null
@@ -238,7 +241,7 @@ class SearchViewModel @Inject constructor(
 
                 val result = repository.searchEvidence(
                     sha256 = sha256,
-                    mediaType = mediaType ?: Constants.MEDIA_TYPE_IMAGE,
+                    mediaType = mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE,
                     fingerprintProfile = fingerprint,
                     canonicalHash = null, // Not used in MVP
                     maxResults = maxResults,
