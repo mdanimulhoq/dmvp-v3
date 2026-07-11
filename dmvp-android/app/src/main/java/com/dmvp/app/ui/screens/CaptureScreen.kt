@@ -53,14 +53,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.dmvp.app.R
+import com.dmvp.app.data.model.DeviceTrustTier
 import com.dmvp.app.data.model.PrivacyFlags
 import com.dmvp.app.ui.components.LoadingOverlay
+import com.dmvp.app.ui.components.LoadingState
 import com.dmvp.app.ui.components.MediaPicker
 import com.dmvp.app.ui.components.MediaPickerResult
+import com.dmvp.app.ui.components.MediaPickerType
 import com.dmvp.app.ui.components.TrustTierBadge
+import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.CaptureViewModel
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.utils.DmvpConstants
 import com.dmvp.app.utils.toFile
 import java.io.File
 
@@ -72,6 +76,7 @@ import java.io.File
  * @param onNavigateToVerify Callback to navigate to verify screen (with file info).
  * @param modifier Modifier for the screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CaptureScreen(
     onNavigateBack: () -> Unit,
@@ -92,7 +97,7 @@ fun CaptureScreen(
                 val file = it.toFile(context)
                 if (file != null) {
                     val mimeType = context.contentResolver.getType(it) ?: "image/*"
-                    val mediaType = if (mimeType.startsWith("video/")) Constants.MEDIA_TYPE_VIDEO else Constants.MEDIA_TYPE_IMAGE
+                    val mediaType = if (mimeType.startsWith("video/")) DmvpConstants.MEDIA_TYPE_VIDEO else DmvpConstants.MEDIA_TYPE_IMAGE
                     viewModel.setGalleryFile(file, mediaType)
                 }
             } catch (e: Exception) {
@@ -155,7 +160,8 @@ fun CaptureScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Error message
-                    if (uiState.error != null) {
+                    val currentError = uiState.error
+                    if (currentError != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -177,7 +183,7 @@ fun CaptureScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = uiState.error,
+                                    text = currentError,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Error,
                                     modifier = Modifier.weight(1f)
@@ -204,7 +210,7 @@ fun CaptureScreen(
                             onResult = { result ->
                                 when (result) {
                                     is MediaPickerResult.Success -> {
-                                        if (result.mediaType == Constants.MEDIA_TYPE_IMAGE) {
+                                        if (result.mediaType == DmvpConstants.MEDIA_TYPE_IMAGE) {
                                             viewModel.setGalleryFile(result.file, result.mediaType)
                                         } else {
                                             viewModel.setGalleryFile(result.file, result.mediaType)
@@ -228,7 +234,7 @@ fun CaptureScreen(
                     if (uiState.selectedFile != null) {
                         MediaPreview(
                             file = uiState.selectedFile!!,
-                            mediaType = uiState.mediaType ?: Constants.MEDIA_TYPE_IMAGE,
+                            mediaType = uiState.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE,
                             sha256 = uiState.sha256,
                             canonicalHash = uiState.canonicalHash,
                             onClear = {
@@ -252,7 +258,7 @@ fun CaptureScreen(
                             Button(
                                 onClick = {
                                     uiState.selectedFile?.let { file ->
-                                        val mediaType = uiState.mediaType ?: Constants.MEDIA_TYPE_IMAGE
+                                        val mediaType = uiState.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE
                                         onNavigateToRegister(file, mediaType)
                                     }
                                 },
@@ -275,7 +281,7 @@ fun CaptureScreen(
                             Button(
                                 onClick = {
                                     uiState.selectedFile?.let { file ->
-                                        val mediaType = uiState.mediaType ?: Constants.MEDIA_TYPE_IMAGE
+                                        val mediaType = uiState.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE
                                         onNavigateToVerify(file, mediaType)
                                     }
                                 },
@@ -360,12 +366,12 @@ private fun MediaPreview(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        imageVector = if (mediaType == Constants.MEDIA_TYPE_IMAGE) Icons.Default.Image else Icons.Default.Video,
+                        imageVector = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE) Icons.Default.Image else Icons.Default.Videocam,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = if (mediaType == Constants.MEDIA_TYPE_IMAGE) "Image" else "Video",
+                        text = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE) "Image" else "Video",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -400,7 +406,7 @@ private fun MediaPreview(
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surface)
             ) {
-                if (mediaType == Constants.MEDIA_TYPE_IMAGE) {
+                if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE) {
                     AsyncImage(
                         model = file,
                         contentDescription = "Media preview",
