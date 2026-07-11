@@ -46,7 +46,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun requestPermissions() {
-        val permissions = mutableListOf()
+        val permissions = mutableListOf<String>()
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.CAMERA)
         }
