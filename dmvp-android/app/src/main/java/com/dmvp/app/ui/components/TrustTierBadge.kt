@@ -28,6 +28,7 @@ package com.dmvp.app.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -42,6 +43,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmvp.app.data.model.DeviceTrustTier
@@ -55,6 +58,18 @@ enum class TrustTierBadgeSize {
     MEDIUM,     // Standard size, used in most places
     LARGE       // Large with more detail, used in detail screens
 }
+
+/**
+ * Holds the four dimension values for a badge size variant.
+ * A plain data class supports component1..component4 destructuring,
+ * unlike chained `to` (Pair) which only supports two components.
+ */
+private data class BadgeDimensions(
+    val paddingHorizontal: Dp,
+    val paddingVertical: Dp,
+    val iconSize: Dp,
+    val fontSize: TextUnit
+)
 
 /**
  * TrustTierBadge composable.
@@ -81,11 +96,12 @@ fun TrustTierBadge(
     val textColor = tierInfo.color
 
     // Dimensions based on size
-    val (paddingHorizontal, paddingVertical, iconSize, fontSize) = when (size) {
-        TrustTierBadgeSize.SMALL -> 8.dp to 4.dp to 16.dp to 10.sp
-        TrustTierBadgeSize.MEDIUM -> 12.dp to 6.dp to 20.dp to 12.sp
-        TrustTierBadgeSize.LARGE -> 16.dp to 8.dp to 24.dp to 14.sp
+    val dimensions = when (size) {
+        TrustTierBadgeSize.SMALL -> BadgeDimensions(8.dp, 4.dp, 16.dp, 10.sp)
+        TrustTierBadgeSize.MEDIUM -> BadgeDimensions(12.dp, 6.dp, 20.dp, 12.sp)
+        TrustTierBadgeSize.LARGE -> BadgeDimensions(16.dp, 8.dp, 24.dp, 14.sp)
     }
+    val (paddingHorizontal, paddingVertical, iconSize, fontSize) = dimensions
 
     val clickableModifier = if (onClick != null) {
         modifier.clickable(onClick = onClick)
