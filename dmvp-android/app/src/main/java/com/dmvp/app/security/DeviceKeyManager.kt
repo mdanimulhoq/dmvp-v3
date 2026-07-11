@@ -148,4 +148,22 @@ object DeviceKeyManager {
             null
         }
     }
+
+    /**
+     * Get a summary of the current device key's attestation status.
+     * Returns an empty map if no device key exists.
+     */
+    fun getAttestationSummary(): Map<String, Any> {
+        return try {
+            if (!hasDeviceKey()) return emptyMap()
+            mapOf(
+                "valid" to true,
+                "hardware_backed" to isHardwareBacked(),
+                "platform" to "android"
+            )
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get attestation summary", e)
+            emptyMap()
+        }
+    }
 }
