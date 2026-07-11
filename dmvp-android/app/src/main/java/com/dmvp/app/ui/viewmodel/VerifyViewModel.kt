@@ -22,9 +22,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
 import com.dmvp.app.data.repository.DMVPRepository
+import com.dmvp.app.data.repository.RepositoryResult
 import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.utils.DmvpConstants
+import com.dmvp.app.utils.VerificationConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,7 +50,7 @@ data class VerifyUiState(
     val canonicalHash: String? = null,
     val fingerprint: RobustFingerprint? = null,
     val verdict: MultiAxisVerdict? = null,
-    val verificationMode: String = Constants.MODE_STANDARD,
+    val verificationMode: String = VerificationConstants.MODE_STANDARD,
     val progress: Float = 0f,
     val isVerified: Boolean = false,
     val error: String? = null,
@@ -133,10 +135,10 @@ class VerifyViewModel @Inject constructor(
 
                 // Generate fingerprint (for similarity checks)
                 val fingerprint = when (mediaType) {
-                    Constants.MEDIA_TYPE_IMAGE -> {
+                    DmvpConstants.MEDIA_TYPE_IMAGE -> {
                         FingerprintUtils.generateImageFingerprint(file.absolutePath)
                     }
-                    Constants.MEDIA_TYPE_VIDEO -> {
+                    DmvpConstants.MEDIA_TYPE_VIDEO -> {
                         FingerprintUtils.generateVideoFingerprint(file.absolutePath)
                     }
                     else -> null
