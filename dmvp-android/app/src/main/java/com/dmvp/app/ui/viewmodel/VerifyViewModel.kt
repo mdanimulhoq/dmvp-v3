@@ -2,16 +2,6 @@
  * app/src/main/java/com/dmvp/app/ui/viewmodel/VerifyViewModel.kt
  *
  * ViewModel for the Verify screen.
- * Handles media selection, verification against the registry,
- * and displaying the multi-axis verdict results.
- *
- * Supports three verification modes: fast, standard, deep.
- * Shows detailed verdict components (integrity, provenance, similarity, evidence quality).
- *
- * Uses:
- *   - DMVPRepository for verification operations
- *   - FingerprintUtils for generating fingerprints from selected media
- *   - HashUtils for computing hashes
  */
 
 package com.dmvp.app.ui.viewmodel
@@ -22,7 +12,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
 import com.dmvp.app.data.repository.DMVPRepository
-import com.dmvp.app.data.repository.RepositoryResult
+import com.dmvp.app.data.repository.Result
 import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
 import com.dmvp.app.utils.DmvpConstants
@@ -38,9 +28,6 @@ import javax.inject.Inject
 
 private const val TAG = "VerifyViewModel"
 
-/**
- * UI state for the Verify screen.
- */
 data class VerifyUiState(
     val isLoading: Boolean = false,
     val selectedFile: File? = null,
@@ -59,9 +46,6 @@ data class VerifyUiState(
     val warningMessages: List<String> = emptyList()
 )
 
-/**
- * ViewModel for verifying media files.
- */
 @HiltViewModel
 class VerifyViewModel @Inject constructor(
     private val repository: DMVPRepository
@@ -70,16 +54,10 @@ class VerifyViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(VerifyUiState())
     val uiState: StateFlow<VerifyUiState> = _uiState.asStateFlow()
 
-    /**
-     * Set verification mode.
-     */
     fun setVerificationMode(mode: String) {
         _uiState.update { it.copy(verificationMode = mode) }
     }
 
-    /**
-     * Set selected media file from gallery.
-     */
     fun setFile(file: File, mediaType: String) {
         _uiState.update {
             it.copy(
@@ -93,13 +71,9 @@ class VerifyViewModel @Inject constructor(
                 errorCode = null
             )
         }
-        // Automatically process the file
         processFile(file, mediaType)
     }
 
-    /**
-     * Set selected media from URI.
-     */
     fun setUri(uri: Uri, mediaType: String) {
         _uiState.update {
             it.copy(
@@ -113,34 +87,22 @@ class VerifyViewModel @Inject constructor(
                 errorCode = null
             )
         }
-        // URI processing is handled in the fragment/activity
-        // The fragment should convert URI to File and call setFile()
     }
 
-    /**
-     * Process the selected file: generate hash and fingerprint.
-     */
     private fun processFile(file: File, mediaType: String) {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, progress = 0.1f) }
 
-                // Compute SHA-256
                 val sha256 = HashUtils.sha256(file)
                 _uiState.update { it.copy(sha256 = sha256, progress = 0.4f) }
 
-                // Compute canonical hash (optional)
                 val canonicalHash = HashUtils.canonicalHash(file, mediaType)
                 _uiState.update { it.copy(canonicalHash = canonicalHash, progress = 0.6f) }
 
-                // Generate fingerprint (for similarity checks)
                 val fingerprint = when (mediaType) {
-                    DmvpConstants.MEDIA_TYPE_IMAGE -> {
-                        FingerprintUtils.generateImageFingerprint(file.absolutePath)
-                    }
-                    DmvpConstants.MEDIA_TYPE_VIDEO -> {
-                        FingerprintUtils.generateVideoFingerprint(file.absolutePath)
-                    }
+                    DmvpConstants.MEDIA_TYPE_IMAGE -> FingerprintUtils.generateImageFingerprint(file.absolutePath)
+                    DmvpConstants.MEDIA_TYPE_VIDEO -> FingerprintUtils.generateVideoFingerprint(file.absolutePath)
                     else -> null
                 }
                 _uiState.update {
@@ -150,10 +112,6 @@ class VerifyViewModel @Inject constructor(
                         isLoading = false
                     )
                 }
-
-                // Auto-verify if we have all data? Or wait for user action.
-                // We'll wait for explicit verify action.
-
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to process file", e)
                 _uiState.update {
@@ -167,9 +125,6 @@ class VerifyViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Verify the selected media against the registry.
-     */
     fun verify() {
         val state = uiState.value
         val sha256 = state.sha256
@@ -207,11 +162,11 @@ class VerifyViewModel @Inject constructor(
                     fingerprintProfile = fingerprint,
                     mode = mode,
                     canonicalHash = canonicalHash,
-                    deviceKeyId = null // server will determine
+                    deviceKeyId = null
                 )
 
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         val verdict = result.data
                         _uiState.update {
                             it.copy(
@@ -225,12 +180,9 @@ class VerifyViewModel @Inject constructor(
                                 errorCode = null
                             )
                         }
-                        // Log verification result
-                        Log.d(TAG, "Verification complete: integrity=${verdict.integrityVerdict}, " +
-                                "provenance=${verdict.provenanceVerdict}, " +
-                                "similarity=${verdict.similarityVerdict}")
+                        Log.d(TAG, "Verification complete: integrity=${verdict.integrityVerdict}, provenance=${verdict.provenanceVerdict}, similarity=${verdict.similarityVerdict}")
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -257,53 +209,27 @@ class VerifyViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Reset the verification state for a new file.
-     */
     fun reset() {
         _uiState.update {
-            VerifyUiState(
-                verificationMode = it.verificationMode // keep mode preference
-            )
+            VerifyUiState(verificationMode = it.verificationMode)
         }
     }
 
-    /**
-     * Clear error state.
-     */
     fun clearError() {
         _uiState.update { it.copy(error = null, errorCode = null) }
     }
 
-    /**
-     * Update progress for long-running operations.
-     */
     fun updateProgress(progress: Float) {
         _uiState.update { it.copy(progress = progress) }
     }
 
-    /**
-     * Set file directly (for use when URI is converted to File).
-     */
     fun setFileDirect(file: File, mediaType: String) {
         setFile(file, mediaType)
     }
 }
 
-// ================================
-// Extension functions for UI state
-// ================================
+fun VerifyUiState.hasSuccessfulVerification(): Boolean = isVerified && verdict != null
 
-/**
- * Check if the UI state has a successful verification result.
- */
-fun VerifyUiState.hasSuccessfulVerification(): Boolean {
-    return isVerified && verdict != null
-}
-
-/**
- * Get a user-friendly summary of the verification result.
- */
 fun VerifyUiState.getVerdictSummary(): String {
     val v = verdict ?: return "No verification result"
     return when {
@@ -311,43 +237,32 @@ fun VerifyUiState.getVerdictSummary(): String {
                 v.provenanceVerdict == ProvenanceVerdict.SIGNED_TRUSTED_DEVICE &&
                 v.evidenceQualityVerdict == EvidenceQualityVerdict.HIGH_EVIDENTIARY_STRENGTH ->
             "✅ Verified - Strong Evidence"
-
         v.integrityVerdict == IntegrityVerdict.EXACT_MATCH &&
                 v.provenanceVerdict == ProvenanceVerdict.SIGNED_TRUSTED_DEVICE ->
             "✅ Verified - Moderate Evidence"
-
         v.integrityVerdict == IntegrityVerdict.EXACT_MATCH ->
             "📄 Integrity Verified, Provenance Uncertain"
-
         v.similarityVerdict == SimilarityVerdict.STRONG_DERIVATIVE &&
                 v.provenanceVerdict == ProvenanceVerdict.SIGNED_TRUSTED_DEVICE ->
             "🔗 Similar Derivative Found (Trusted)"
-
         v.similarityVerdict == SimilarityVerdict.STRONG_DERIVATIVE ->
             "🔗 Similar Derivative Found (Provenance Uncertain)"
-
         v.similarityVerdict == SimilarityVerdict.PROBABLE_DERIVATIVE ->
             "🔍 Probable Derivative Found"
-
         else -> "❌ No Strong Evidence Found"
     }
 }
 
-/**
- * Get color resource for the overall verdict (to be used with theme colors).
- */
 fun VerifyUiState.getVerdictColor(): Int {
-    val v = verdict ?: return 0xFFFF6D00.toInt() // orange for unknown
+    val v = verdict ?: return 0xFFFF6D00.toInt()
     return when {
         v.integrityVerdict == IntegrityVerdict.EXACT_MATCH &&
                 v.provenanceVerdict == ProvenanceVerdict.SIGNED_TRUSTED_DEVICE &&
                 v.evidenceQualityVerdict == EvidenceQualityVerdict.HIGH_EVIDENTIARY_STRENGTH ->
-            0xFF00E676.toInt() // green
-
+            0xFF00E676.toInt()
         v.integrityVerdict == IntegrityVerdict.EXACT_MATCH ||
                 v.similarityVerdict == SimilarityVerdict.STRONG_DERIVATIVE ->
-            0xFFFFD740.toInt() // amber
-
-        else -> 0xFFE53935.toInt() // red
+            0xFFFFD740.toInt()
+        else -> 0xFFE53935.toInt()
     }
 }
