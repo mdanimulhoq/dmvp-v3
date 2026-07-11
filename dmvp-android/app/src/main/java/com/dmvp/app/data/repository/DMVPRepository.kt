@@ -20,9 +20,7 @@ package com.dmvp.app.data.repository
 import android.content.Context
 import android.util.Log
 import com.dmvp.app.data.model.*
-import com.dmvp.app.data.remote.ApiException
-import com.dmvp.app.data.remote.ApiService
-import com.dmvp.app.data.remote.RetrofitClient
+import com.dmvp.app.data.remote.*
 import com.dmvp.app.security.DeviceKeyManager
 import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
@@ -123,7 +121,6 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
-
     /**
      * Get the current device key ID from local storage.
      */
@@ -250,7 +247,6 @@ class DMVPRepository(private val context: Context) {
                         message = "Failed to sign evidence"
                     )
                 }
-
                 // Idempotency key (optional, use SHA-256 of file as idempotency key)
                 val idempotencyKey = HashUtils.sha256(file)
 
@@ -329,7 +325,6 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
-
     /**
      * Verify a file by generating fingerprint and hash.
      */
@@ -414,7 +409,6 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
-
     /**
      * Get related evidence.
      */
@@ -495,7 +489,6 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
-
     /**
      * Revoke device key.
      */
@@ -628,7 +621,6 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
-
     private fun clearLocalDeviceState() {
         val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
         prefs.edit()
@@ -738,9 +730,7 @@ class DMVPRepository(private val context: Context) {
                 }
             }
         }
-    }
-
-    // ============================
+    }// ============================
     // Premium Backup (optional)
     // ============================
 
@@ -840,4 +830,4 @@ class DMVPRepository(private val context: Context) {
 // Typealiases for convenience
 // ============================
 
-typealias RepositoryResult<T> = Result<T>
+    typealias RepositoryResult<T> = Result<T>
