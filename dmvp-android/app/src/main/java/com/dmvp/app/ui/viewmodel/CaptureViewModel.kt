@@ -4,14 +4,6 @@
  * ViewModel for the Capture screen.
  * Handles media capture (camera/gallery), fingerprint generation,
  * and preparation for registration or verification.
- *
- * Uses:
- *   - DMVPRepository for operations
- *   - CEEBuilder for CEE construction
- *   - FingerprintUtils for fingerprint generation
- *   - HashUtils for hashing
- *
- * State management with Compose StateFlow.
  */
 
 package com.dmvp.app.ui.viewmodel
@@ -24,7 +16,7 @@ import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
 import com.dmvp.app.data.remote.EvidenceRecord
 import com.dmvp.app.data.repository.DMVPRepository
-import com.dmvp.app.data.repository.RepositoryResult
+import com.dmvp.app.data.repository.Result
 import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
 import com.dmvp.app.utils.CEEBuilder
@@ -42,9 +34,6 @@ import javax.inject.Inject
 
 private const val TAG = "CaptureViewModel"
 
-/**
- * UI state for the Capture screen.
- */
 data class CaptureUiState(
     val isLoading: Boolean = false,
     val isCapturing: Boolean = false,
@@ -69,21 +58,10 @@ data class CaptureUiState(
     val validationMode: ValidationMode = ValidationMode.IDLE
 )
 
-/**
- * Validation mode for the capture flow.
- */
 enum class ValidationMode {
-    IDLE,
-    READY_FOR_REGISTRATION,
-    READY_FOR_VERIFICATION,
-    PROCESSING,
-    COMPLETE,
-    ERROR
+    IDLE, READY_FOR_REGISTRATION, READY_FOR_VERIFICATION, PROCESSING, COMPLETE, ERROR
 }
 
-/**
- * ViewModel for handling media capture and processing.
- */
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
     private val repository: DMVPRepository
@@ -92,126 +70,65 @@ class CaptureViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(CaptureUiState())
     val uiState: StateFlow<CaptureUiState> = _uiState.asStateFlow()
 
-    /**
-     * Set privacy flags.
-     */
     fun setPrivacyFlags(privacyFlags: PrivacyFlags) {
         _uiState.update { it.copy(privacyFlags = privacyFlags) }
     }
 
-    /**
-     * Set verification mode.
-     */
     fun setVerificationMode(mode: String) {
         _uiState.update { it.copy(verificationMode = mode) }
     }
 
-    /**
-     * Set capture time claim.
-     */
     fun setCaptureTimeClaim(timestamp: String) {
         _uiState.update { it.copy(captureTimeClaim = timestamp) }
     }
 
-    /**
-     * Set geolocation claim.
-     */
     fun setGeolocationClaim(lat: Double, lng: Double) {
         _uiState.update {
-            it.copy(
-                geolocationClaim = GeolocationClaim(
-                    lat = lat,
-                    lng = lng
-                )
-            )
+            it.copy(geolocationClaim = GeolocationClaim(lat = lat, lng = lng))
         }
     }
 
-    /**
-     * Set selected media file from camera capture.
-     */
     fun setCapturedFile(file: File, mediaType: String) {
         _uiState.update {
-            it.copy(
-                selectedFile = file,
-                mediaType = mediaType,
-                isCapturing = false,
-                validationMode = ValidationMode.PROCESSING
-            )
+            it.copy(selectedFile = file, mediaType = mediaType, isCapturing = false, validationMode = ValidationMode.PROCESSING)
         }
-        // Process the file
         processMediaFile(file, mediaType)
     }
 
-    /**
-     * Set selected media from gallery.
-     */
     fun setGalleryFile(file: File, mediaType: String) {
         _uiState.update {
-            it.copy(
-                selectedFile = file,
-                selectedUri = null,
-                mediaType = mediaType,
-                isCapturing = false,
-                validationMode = ValidationMode.PROCESSING
-            )
+            it.copy(selectedFile = file, selectedUri = null, mediaType = mediaType, isCapturing = false, validationMode = ValidationMode.PROCESSING)
         }
         processMediaFile(file, mediaType)
     }
 
-    /**
-     * Set selected media from URI.
-     */
     fun setGalleryUri(uri: Uri, mediaType: String) {
         _uiState.update {
-            it.copy(
-                selectedUri = uri,
-                selectedFile = null,
-                mediaType = mediaType,
-                isCapturing = false,
-                validationMode = ValidationMode.PROCESSING
-            )
+            it.copy(selectedUri = uri, selectedFile = null, mediaType = mediaType, isCapturing = false, validationMode = ValidationMode.PROCESSING)
         }
-        // For URI, we need to convert to File via content resolver
-        // This is handled in the fragment/activity
     }
 
-    /**
-     * Process the media file: generate hash, fingerprint, and CEE.
-     */
     private fun processMediaFile(file: File, mediaType: String) {
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, progress = 0.1f) }
 
-                // Generate SHA-256
                 val sha256 = HashUtils.sha256(file)
                 _uiState.update { it.copy(sha256 = sha256, progress = 0.3f) }
 
-                // Generate canonical hash (optional)
                 val canonicalHash = HashUtils.canonicalHash(file, mediaType)
                 _uiState.update { it.copy(canonicalHash = canonicalHash, progress = 0.5f) }
 
-                // Generate fingerprint
                 val fingerprint = when (mediaType) {
-                    DmvpConstants.MEDIA_TYPE_IMAGE -> {
-                        FingerprintUtils.generateImageFingerprint(file.absolutePath)
-                    }
-                    DmvpConstants.MEDIA_TYPE_VIDEO -> {
-                        FingerprintUtils.generateVideoFingerprint(
-                            file.absolutePath,
-                            maxKeyframes = 10
-                        )
-                    }
+                    DmvpConstants.MEDIA_TYPE_IMAGE -> FingerprintUtils.generateImageFingerprint(file.absolutePath)
+                    DmvpConstants.MEDIA_TYPE_VIDEO -> FingerprintUtils.generateVideoFingerprint(file.absolutePath, maxKeyframes = 10)
                     else -> null
                 }
                 _uiState.update { it.copy(fingerprint = fingerprint, progress = 0.7f) }
 
-                // Build CEE (without signature, for preview)
                 val deviceKeyResult = repository.getOrCreateDeviceKey()
-                if (deviceKeyResult is RepositoryResult.Success) {
+                if (deviceKeyResult is Result.Success) {
                     val (deviceKeyId, publicKey) = deviceKeyResult.data
-
                     val cee = when (mediaType) {
                         DmvpConstants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
                             context = file.context ?: return@launch,
@@ -233,7 +150,6 @@ class CaptureViewModel @Inject constructor(
                         )
                         else -> null
                     }
-
                     _uiState.update {
                         it.copy(
                             cee = cee,
@@ -269,20 +185,13 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Register the evidence with the server.
-     */
     fun registerEvidence() {
         val state = uiState.value
         val file = state.selectedFile
         val cee = state.cee
-
         if (file == null || cee == null) {
             _uiState.update {
-                it.copy(
-                    error = "No media selected or CEE not built",
-                    errorCode = "INVALID_STATE"
-                )
+                it.copy(error = "No media selected or CEE not built", errorCode = "INVALID_STATE")
             }
             return
         }
@@ -290,7 +199,6 @@ class CaptureViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, validationMode = ValidationMode.PROCESSING) }
-
                 val result = repository.registerMedia(
                     file = file,
                     mediaType = state.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE,
@@ -298,9 +206,8 @@ class CaptureViewModel @Inject constructor(
                     captureTimeClaim = state.captureTimeClaim,
                     geolocationClaim = state.geolocationClaim
                 )
-
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -312,7 +219,7 @@ class CaptureViewModel @Inject constructor(
                             )
                         }
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -337,22 +244,13 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Verify the evidence against the registry.
-     */
     fun verifyEvidence() {
         val state = uiState.value
         val sha256 = state.sha256
         val mediaType = state.mediaType
-        val fingerprint = state.fingerprint
-        val canonicalHash = state.canonicalHash
-
         if (sha256 == null || mediaType == null) {
             _uiState.update {
-                it.copy(
-                    error = "Missing required data for verification",
-                    errorCode = "INVALID_STATE"
-                )
+                it.copy(error = "Missing required data for verification", errorCode = "INVALID_STATE")
             }
             return
         }
@@ -360,18 +258,16 @@ class CaptureViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 _uiState.update { it.copy(isLoading = true, validationMode = ValidationMode.PROCESSING) }
-
                 val result = repository.verifyMedia(
                     sha256 = sha256,
                     mediaType = mediaType,
-                    fingerprintProfile = fingerprint,
+                    fingerprintProfile = state.fingerprint,
                     mode = state.verificationMode,
-                    canonicalHash = canonicalHash,
-                    deviceKeyId = null // Let server determine from evidence
+                    canonicalHash = state.canonicalHash,
+                    deviceKeyId = null
                 )
-
                 when (result) {
-                    is RepositoryResult.Success -> {
+                    is Result.Success -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -383,7 +279,7 @@ class CaptureViewModel @Inject constructor(
                             )
                         }
                     }
-                    is RepositoryResult.Error -> {
+                    is Result.Error -> {
                         _uiState.update {
                             it.copy(
                                 isLoading = false,
@@ -408,9 +304,6 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Reset the capture state for a new media selection.
-     */
     fun resetCapture() {
         _uiState.update {
             CaptureUiState(
@@ -422,59 +315,31 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Clear error state.
-     */
     fun clearError() {
         _uiState.update { it.copy(error = null, errorCode = null) }
     }
 
-    /**
-     * Update progress for long-running operations.
-     */
     fun updateProgress(progress: Float) {
         _uiState.update { it.copy(progress = progress) }
     }
 
-    /**
-     * Set capturing state.
-     */
     fun setCapturing(isCapturing: Boolean) {
         _uiState.update { it.copy(isCapturing = isCapturing) }
     }
 }
 
-/**
- * Extension to get Context from File (if available).
- * This is a workaround; in practice, you'd pass Context explicitly.
- */
-private val File.context: Context?
-    get() = null // In practice, you'd get from application context
+private val File.context: Context? get() = null
 
-/**
- * Convenience extension to check if the state is ready for registration.
- */
 fun CaptureUiState.isReadyForRegistration(): Boolean {
     return validationMode == ValidationMode.READY_FOR_REGISTRATION &&
-            selectedFile != null &&
-            cee != null &&
-            !isLoading
+            selectedFile != null && cee != null && !isLoading
 }
 
-/**
- * Convenience extension to check if the state is ready for verification.
- */
 fun CaptureUiState.isReadyForVerification(): Boolean {
-    return (validationMode == ValidationMode.READY_FOR_REGISTRATION ||
-            validationMode == ValidationMode.COMPLETE) &&
-            sha256 != null &&
-            mediaType != null &&
-            !isLoading
+    return (validationMode == ValidationMode.READY_FOR_REGISTRATION || validationMode == ValidationMode.COMPLETE) &&
+            sha256 != null && mediaType != null && !isLoading
 }
 
-/**
- * Get a summary of the captured media.
- */
 fun CaptureUiState.getMediaSummary(): String {
     val file = selectedFile
     val type = mediaType ?: "unknown"
