@@ -23,6 +23,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
+import com.dmvp.app.data.repository.RepositoryResult
 import com.dmvp.app.data.repository.DMVPRepository
 import com.dmvp.app.security.DeviceKeyManager
 import dagger.hilt.android.lifecycle.HiltViewModel
