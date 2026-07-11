@@ -34,7 +34,10 @@ import android.provider.MediaStore
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.Preview as CameraXPreview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.*
 import androidx.camera.view.PreviewView
@@ -57,12 +60,14 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.dmvp.app.BuildConfig
 import com.dmvp.app.R
+import com.dmvp.app.ui.theme.*
 import com.dmvp.app.utils.AppConfig
 import java.io.File
 import java.io.FileOutputStream
@@ -117,6 +122,19 @@ fun MediaPicker(
     val scope = rememberCoroutineScope()
     var isCameraVisible by remember { mutableStateOf(false) }
 
+    // Activity result launchers MUST be registered directly inside a @Composable
+    // function body (not from a plain function called inside an onClick lambda).
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        handleMediaUriResult(context, uri, onResult)
+    }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        handleMediaUriResult(context, uri, onResult)
+    }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -149,11 +167,7 @@ fun MediaPicker(
                     icon = Icons.Default.PhotoLibrary,
                     label = "Gallery",
                     onClick = {
-                        launchGalleryPicker(
-                            context = context,
-                            mediaType = mediaType,
-                            onResult = onResult
-                        )
+                        galleryLauncher.launch(mimeTypeFor(mediaType))
                     }
                 )
             }
@@ -162,11 +176,7 @@ fun MediaPicker(
                     icon = Icons.Default.Folder,
                     label = "Browse",
                     onClick = {
-                        launchFilePicker(
-                            context = context,
-                            mediaType = mediaType,
-                            onResult = onResult
-                        )
+                        filePickerLauncher.launch(mimeTypeFor(mediaType))
                     }
                 )
             }
@@ -229,6 +239,7 @@ private fun CameraView(
 ) {
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
     var videoCapture: VideoCapture<Recorder>? by remember { mutableStateOf(null) }
+    var currentRecording: Recording? by remember { mutableStateOf(null) }
     var isRecording by remember { mutableStateOf(false) }
     var cameraPermissionGranted by remember {
         mutableStateOf(
@@ -261,7 +272,7 @@ private fun CameraView(
         if (cameraPermissionGranted) {
             try {
                 val cameraProvider = ProcessCameraProvider.getInstance(context).await()
-                val preview = Preview.Builder().build().also {
+                val preview = CameraXPreview.Builder().build().also {
                     it.setSurfaceProvider(previewView?.surfaceProvider)
                 }
 
@@ -370,8 +381,24 @@ private fun CameraView(
                     .clickable {
                         if (isRecording) {
                             // Stop recording
-                            videoCapture?.stopRecording()
+                            currentRecording?.stop()
+                            currentRecording = null
                             isRecording = false
+                        } else if (mediaType == MediaPickerType.VIDEO) {
+                            isRecording = true
+                            currentRecording = captureMedia(
+                                context = context,
+                                mediaType = mediaType,
+                                imageCapture = imageCapture,
+                                videoCapture = videoCapture,
+                                onResult = { result ->
+                                    isRecording = false
+                                    onResult(result)
+                                    if (result !is MediaPickerResult.Cancelled) {
+                                        onClose()
+                                    }
+                                }
+                            )
                         } else {
                             captureMedia(
                                 context = context,
@@ -435,41 +462,43 @@ private fun CameraView(
 
 /**
  * Capture media (image or video) based on media type.
+ * For video, returns the active [Recording] so the caller can stop it later;
+ * returns null for image capture (which completes via callback) or on failure.
  */
-private fun captureMedia(
+ private fun captureMedia(
     context: Context,
     mediaType: MediaPickerType,
     imageCapture: ImageCapture?,
     videoCapture: VideoCapture<Recorder>?,
     onResult: (MediaPickerResult) -> Unit
-) {
-    try {
+): Recording? {
+    return try {
         val file = createMediaFile(context, if (mediaType == MediaPickerType.VIDEO) "video" else "image")
 
         when {
             mediaType == MediaPickerType.VIDEO && videoCapture != null -> {
-                // Record video
-                val outputOptions = VideoCapture.OutputFileOptions.Builder(file).build()
-                videoCapture.startRecording(
-                    outputOptions,
-                    ContextCompat.getMainExecutor(context),
-                    object : VideoCapture.OnVideoSavedCallback {
-                        override fun onVideoSaved(output: VideoCapture.OutputFileResults) {
-                            onResult(
-                                MediaPickerResult.Success(
-                                    file = file,
-                                    mediaType = "video",
-                                    uri = output.savedUri ?: Uri.fromFile(file)
+                // Record video using the CameraX Video API: a Recording is
+                // started via Recorder.output.prepareRecording(...).start(...),
+                // and later stopped by calling recording.stop() on that object.
+                val outputOptions = FileOutputOptions.Builder(file).build()
+                videoCapture.output
+                    .prepareRecording(context, outputOptions)
+                    .start(ContextCompat.getMainExecutor(context)) { event ->
+                        if (event is VideoRecordEvent.Finalize) {
+                            if (!event.hasError()) {
+                                onResult(
+                                    MediaPickerResult.Success(
+                                        file = file,
+                                        mediaType = "video",
+                                        uri = event.outputResults.outputUri
+                                    )
                                 )
-                            )
-                        }
-
-                        override fun onError(videoCaptureError: Int, message: String, cause: Throwable?) {
-                            Log.e(TAG, "Video capture error: $message")
-                            onResult(MediaPickerResult.Error("Video capture failed: $message"))
+                            } else {
+                                Log.e(TAG, "Video capture error code: ${event.error}")
+                                onResult(MediaPickerResult.Error("Video capture failed (error ${event.error})"))
+                            }
                         }
                     }
-                )
             }
 
             mediaType != MediaPickerType.VIDEO && imageCapture != null -> {
@@ -495,86 +524,55 @@ private fun captureMedia(
                         }
                     }
                 )
+                null
             }
 
             else -> {
                 onResult(MediaPickerResult.Error("Camera not ready"))
+                null
             }
         }
     } catch (e: Exception) {
         Log.e(TAG, "Capture error", e)
         onResult(MediaPickerResult.Error("Capture error: ${e.message}"))
+        null
     }
 }
 
 /**
- * Launch gallery picker.
+ * Determine the MIME type filter to use for the system picker based on media type.
  */
- private fun launchGalleryPicker(
-    context: Context,
-    mediaType: MediaPickerType,
-    onResult: (MediaPickerResult) -> Unit
-) {
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) {
-            onResult(MediaPickerResult.Cancelled)
-            return@rememberLauncherForActivityResult
-        }
-        try {
-            val file = uriToFile(context, uri) ?: throw Exception("Failed to convert URI to file")
-            val mimeType = context.contentResolver.getType(uri) ?: "image/*"
-            val mediaType = if (mimeType.startsWith("video/")) "video" else "image"
-            onResult(MediaPickerResult.Success(file, mediaType, uri))
-        } catch (e: Exception) {
-            Log.e(TAG, "Gallery pick error", e)
-            onResult(MediaPickerResult.Error("Failed to load media: ${e.message}"))
-        }
-    }
-
-    val mimeType = when (mediaType) {
+private fun mimeTypeFor(mediaType: MediaPickerType): String {
+    return when (mediaType) {
         MediaPickerType.IMAGE -> "image/*"
         MediaPickerType.VIDEO -> "video/*"
         MediaPickerType.IMAGE_AND_VIDEO -> "*/*"
     }
-
-    launcher.launch(mimeType)
 }
 
 /**
- * Launch file picker (Android's built-in file picker).
+ * Handle the URI returned by the gallery/file picker launcher.
+ * This is a plain (non-@Composable) function — it must not call any
+ * @Composable functions such as rememberLauncherForActivityResult.
  */
-private fun launchFilePicker(
+private fun handleMediaUriResult(
     context: Context,
-    mediaType: MediaPickerType,
+    uri: Uri?,
     onResult: (MediaPickerResult) -> Unit
 ) {
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        if (uri == null) {
-            onResult(MediaPickerResult.Cancelled)
-            return@rememberLauncherForActivityResult
-        }
-        try {
-            val file = uriToFile(context, uri) ?: throw Exception("Failed to convert URI to file")
-            val mimeType = context.contentResolver.getType(uri) ?: "image/*"
-            val mediaType = if (mimeType.startsWith("video/")) "video" else "image"
-            onResult(MediaPickerResult.Success(file, mediaType, uri))
-        } catch (e: Exception) {
-            Log.e(TAG, "File pick error", e)
-            onResult(MediaPickerResult.Error("Failed to load file: ${e.message}"))
-        }
+    if (uri == null) {
+        onResult(MediaPickerResult.Cancelled)
+        return
     }
-
-    val mimeType = when (mediaType) {
-        MediaPickerType.IMAGE -> "image/*"
-        MediaPickerType.VIDEO -> "video/*"
-        MediaPickerType.IMAGE_AND_VIDEO -> "*/*"
+    try {
+        val file = uriToFile(context, uri) ?: throw Exception("Failed to convert URI to file")
+        val mimeType = context.contentResolver.getType(uri) ?: "image/*"
+        val mediaType = if (mimeType.startsWith("video/")) "video" else "image"
+        onResult(MediaPickerResult.Success(file, mediaType, uri))
+    } catch (e: Exception) {
+        Log.e(TAG, "Media pick error", e)
+        onResult(MediaPickerResult.Error("Failed to load media: ${e.message}"))
     }
-
-    launcher.launch(mimeType)
 }
 
 /**
