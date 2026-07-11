@@ -22,6 +22,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
+import android.view.View
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import java.io.ByteArrayOutputStream
@@ -354,8 +355,6 @@ fun <T> Collection<T>?.isNotNullOrEmpty(): Boolean {
 // ================================
 // View Extensions
 // ================================
-
-import android.view.View
 
 /**
  * Show the view (set visibility to VISIBLE).
