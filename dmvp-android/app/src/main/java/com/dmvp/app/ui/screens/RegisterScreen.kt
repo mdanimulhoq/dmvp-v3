@@ -3,20 +3,6 @@
  *
  * RegisterScreen for DMVP v3.0 Android app.
  * Handles the complete registration flow: review CEE, sign, submit to registry.
- *
- * Features:
- *   - CEE preview with expandable sections
- *   - Device trust tier status
- *   - Registration progress and status
- *   - Submit and cancel actions
- *   - Success/error states with navigation
- *   - Dark theme optimized
- *
- * Uses:
- *   - RegisterViewModel for state management
- *   - CEEPreview for showing the Canonical Evidence Envelope
- *   - TrustTierBadge for device trust display
- *   - LoadingOverlay for progress indication
  */
 
 package com.dmvp.app.ui.screens
@@ -40,19 +26,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dmvp.app.data.model.DeviceTrustTier
 import com.dmvp.app.ui.components.CEEPreview
 import com.dmvp.app.ui.components.LoadingOverlay
+import com.dmvp.app.ui.components.LoadingState
 import com.dmvp.app.ui.components.TrustTierBadge
+import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.RegisterViewModel
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.ui.viewmodel.getStepDescription
+import com.dmvp.app.ui.viewmodel.isReadyToSubmit
 
-/**
- * RegisterScreen composable.
- *
- * @param onNavigateBack Callback to navigate back.
- * @param onNavigateToEvidenceDetail Callback to navigate to evidence detail after successful registration.
- * @param onNavigateToHome Callback to navigate to home.
- * @param modifier Modifier for the screen.
- */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     onNavigateBack: () -> Unit,
@@ -63,10 +45,10 @@ fun RegisterScreen(
     val viewModel: RegisterViewModel = viewModel()
     val uiState by viewModel.uiState.collectAsState()
 
-    // If registration is complete, navigate to evidence detail
     LaunchedEffect(uiState.isRegistered) {
-        if (uiState.isRegistered && uiState.registrationResult != null) {
-            onNavigateToEvidenceDetail(uiState.registrationResult.evidenceId)
+        val registrationResult = uiState.registrationResult
+        if (uiState.isRegistered && registrationResult != null) {
+            onNavigateToEvidenceDetail(registrationResult.evidenceId)
         }
     }
 
@@ -100,9 +82,8 @@ fun RegisterScreen(
                     }
                 },
                 actions = {
-                    // Device trust tier badge
                     TrustTierBadge(
-                        trustTier = DeviceTrustTier.TIER_A, // placeholder
+                        trustTier = DeviceTrustTier.TIER_A,
                         size = TrustTierBadgeSize.SMALL,
                         modifier = Modifier.padding(end = 8.dp)
                     )
@@ -148,8 +129,8 @@ fun RegisterScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Error message
-                    if (uiState.error != null) {
+                    val error = uiState.error
+                    if (error != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -171,7 +152,7 @@ fun RegisterScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = uiState.error,
+                                    text = error,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Error,
                                     modifier = Modifier.weight(1f)
@@ -191,8 +172,8 @@ fun RegisterScreen(
                         }
                     }
 
-                    // Device info summary
-                    if (uiState.deviceKeyId != null) {
+                    val deviceKeyId = uiState.deviceKeyId
+                    if (deviceKeyId != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -221,14 +202,15 @@ fun RegisterScreen(
                                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                     )
                                     Text(
-                                        text = uiState.deviceKeyId.take(20) + "...",
+                                        text = deviceKeyId.take(20) + "...",
                                         style = MaterialTheme.typography.bodySmall.copy(
                                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                         ),
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
-                                if (uiState.trustTier != null) {
+                                val trustTier = uiState.trustTier
+                                if (trustTier != null) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -240,7 +222,7 @@ fun RegisterScreen(
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                                         )
                                         TrustTierBadge(
-                                            trustTier = DeviceTrustTier.valueOf(uiState.trustTier),
+                                            trustTier = DeviceTrustTier.valueOf(trustTier),
                                             size = TrustTierBadgeSize.SMALL
                                         )
                                     }
@@ -249,10 +231,10 @@ fun RegisterScreen(
                         }
                     }
 
-                    // CEE Preview
-                    if (uiState.cee != null) {
+                    val cee = uiState.cee
+                    if (cee != null) {
                         CEEPreview(
-                            cee = uiState.cee,
+                            cee = cee,
                             modifier = Modifier.fillMaxWidth(),
                             showSignature = true,
                             onCopyClick = { field, value ->
@@ -260,7 +242,6 @@ fun RegisterScreen(
                             }
                         )
                     } else {
-                        // Placeholder when CEE is not yet built
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -293,7 +274,6 @@ fun RegisterScreen(
                         }
                     }
 
-                    // Submit button
                     Button(
                         onClick = viewModel::submitRegistration,
                         modifier = Modifier
@@ -319,7 +299,6 @@ fun RegisterScreen(
                         )
                     }
 
-                    // Status text
                     Text(
                         text = uiState.getStepDescription(),
                         style = MaterialTheme.typography.bodySmall,
@@ -334,10 +313,6 @@ fun RegisterScreen(
         )
     }
 }
-
-// ================================
-// Preview
-// ================================
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
