@@ -1,11 +1,13 @@
 package com.dmvp.app.navigation
+
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.navigation.NavController
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+
 @Composable
-fun NavGraph(navController: NavController, startDestination: String) {
+fun NavGraph(navController: NavHostController, startDestination: String) {
     NavHost(navController, startDestination) {
         composable(Screen.Home.route) { Text("Home") }
         composable(Screen.Capture.route) { Text("Capture") }
