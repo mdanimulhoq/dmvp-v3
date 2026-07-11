@@ -26,7 +26,7 @@ import com.dmvp.app.security.FingerprintUtils
 import com.dmvp.app.security.HashUtils
 import com.dmvp.app.security.SignatureUtils
 import com.dmvp.app.utils.CEEBuilder
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.utils.DmvpConstants
 import com.dmvp.app.utils.PrefsKeys
 import com.dmvp.app.utils.currentIso8601
 import kotlinx.coroutines.Dispatchers
@@ -121,6 +121,7 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
+
     /**
      * Get the current device key ID from local storage.
      */
@@ -153,7 +154,7 @@ class DMVPRepository(private val context: Context) {
     /**
      * Build attestation summary from certificate chain.
      */
-    private fun buildAttestationSummary(certChain: List<java.security.cert.X509Certificate>): AttestationSummary {
+     private fun buildAttestationSummary(certChain: List<java.security.cert.X509Certificate>): AttestationSummary {
         return AttestationSummary(
             valid = true,
             hardwareBacked = DeviceKeyManager.isHardwareBacked(),
@@ -205,7 +206,7 @@ class DMVPRepository(private val context: Context) {
 
                 // Build CEE
                 val cee = when (mediaType) {
-                    Constants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
+                    DmvpConstants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
                         context = context,
                         imageFile = file,
                         deviceKeyId = deviceKeyId,
@@ -215,7 +216,7 @@ class DMVPRepository(private val context: Context) {
                         geolocationClaim = geolocationClaim,
                         chainParentEvidenceId = chainParentEvidenceId
                     )
-                    Constants.MEDIA_TYPE_VIDEO -> CEEBuilder.buildFromVideoFile(
+                    DmvpConstants.MEDIA_TYPE_VIDEO -> CEEBuilder.buildFromVideoFile(
                         context = context,
                         videoFile = file,
                         deviceKeyId = deviceKeyId,
@@ -247,6 +248,7 @@ class DMVPRepository(private val context: Context) {
                         message = "Failed to sign evidence"
                     )
                 }
+
                 // Idempotency key (optional, use SHA-256 of file as idempotency key)
                 val idempotencyKey = HashUtils.sha256(file)
 
@@ -256,7 +258,7 @@ class DMVPRepository(private val context: Context) {
                     signature = signature,
                     nonce = nonce,
                     timestamp = timestamp,
-                    policyVersion = Constants.PROTOCOL_VERSION,
+                    policyVersion = DmvpConstants.PROTOCOL_VERSION,
                     cee = cee
                 )
 
@@ -325,10 +327,10 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
+
     /**
      * Verify a file by generating fingerprint and hash.
-     */
-    suspend fun verifyFile(
+     */suspend fun verifyFile(
         file: File,
         mediaType: String,
         mode: String = "standard"
@@ -342,8 +344,8 @@ class DMVPRepository(private val context: Context) {
                 if (mode != "fast") {
                     // Generate fingerprint
                     fingerprint = when (mediaType) {
-                        Constants.MEDIA_TYPE_IMAGE -> FingerprintUtils.generateImageFingerprint(file.absolutePath)
-                        Constants.MEDIA_TYPE_VIDEO -> FingerprintUtils.generateVideoFingerprint(file.absolutePath)
+                        DmvpConstants.MEDIA_TYPE_IMAGE -> FingerprintUtils.generateImageFingerprint(file.absolutePath)
+                        DmvpConstants.MEDIA_TYPE_VIDEO -> FingerprintUtils.generateVideoFingerprint(file.absolutePath)
                         else -> null
                     }
                     // Canonical hash (optional)
@@ -409,6 +411,7 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
+
     /**
      * Get related evidence.
      */
@@ -489,6 +492,7 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
+
     /**
      * Revoke device key.
      */
@@ -521,7 +525,7 @@ class DMVPRepository(private val context: Context) {
     /**
      * Recover device lineage.
      */
-    suspend fun recoverDeviceLineage(
+     suspend fun recoverDeviceLineage(
         oldDeviceKeyId: String,
         newDeviceKeyId: String,
         newPublicKey: String,
@@ -621,6 +625,7 @@ class DMVPRepository(private val context: Context) {
             }
         }
     }
+
     private fun clearLocalDeviceState() {
         val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
         prefs.edit()
@@ -730,10 +735,11 @@ class DMVPRepository(private val context: Context) {
                 }
             }
         }
-    }// ============================
+    }
+
+    // ============================
     // Premium Backup (optional)
     // ============================
-
     suspend fun backupMedia(evidenceId: String, encryptedData: ByteArray): Result<BackupResponse> {
         return withContext(Dispatchers.IO) {
             try {
@@ -830,4 +836,5 @@ class DMVPRepository(private val context: Context) {
 // Typealiases for convenience
 // ============================
 
-    typealias RepositoryResult<T> = Result<T>
+typealias RepositoryResult<T> = Result<T>
+     
