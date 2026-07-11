@@ -3,25 +3,12 @@
  *
  * SearchScreen for DMVP v3.0 Android app.
  * Allows searching for evidence by SHA-256 hash or by uploading a file for similarity search.
- *
- * Features:
- *   - Search by SHA-256 hash input
- *   - File-based similarity search via MediaPicker
- *   - Search mode toggle (exact, similarity)
- *   - Results list with match type, score, and evidence ID
- *   - Click on result to navigate to evidence detail
- *   - Loading and error states
- *   - Dark theme optimized
- *
- * Uses:
- *   - SearchViewModel for state management
- *   - MediaPicker for file selection
- *   - VerdictCard (compact mode) for displaying matches
- *   - LoadingOverlay for progress indication
  */
 
 package com.dmvp.app.ui.screens
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,47 +16,68 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CompareArrows
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.dmvp.app.data.model.MatchedEvidence
 import com.dmvp.app.ui.components.LoadingOverlay
+import com.dmvp.app.ui.components.LoadingState
 import com.dmvp.app.ui.components.MediaPicker
 import com.dmvp.app.ui.components.MediaPickerResult
-import com.dmvp.app.ui.components.VerdictCard
-import com.dmvp.app.ui.theme.*
+import com.dmvp.app.ui.components.MediaPickerType
+import com.dmvp.app.ui.theme.CyanBright
+import com.dmvp.app.ui.theme.DMVPTheme
+import com.dmvp.app.ui.theme.DeepPurple900
+import com.dmvp.app.ui.theme.Error
+import com.dmvp.app.ui.theme.Success
+import com.dmvp.app.ui.theme.Warning
 import com.dmvp.app.ui.viewmodel.SearchMode
 import com.dmvp.app.ui.viewmodel.SearchViewModel
-import com.dmvp.app.utils.Constants
+import com.dmvp.app.ui.viewmodel.getBestMatchDescription
+import com.dmvp.app.ui.viewmodel.getFormattedScore
+import com.dmvp.app.ui.viewmodel.getMatchTypeColor
+import com.dmvp.app.ui.viewmodel.getMatchTypeLabel
+import com.dmvp.app.utils.DmvpConstants
 import com.dmvp.app.utils.isValidSha256
 
 /**
  * SearchScreen composable.
- *
- * @param onNavigateBack Callback to navigate back.
- * @param onNavigateToEvidenceDetail Callback to navigate to evidence detail.
- * @param modifier Modifier for the screen.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SearchScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEvidenceDetail: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel: SearchViewModel = viewModel()
+    val viewModel: SearchViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
     // Handle navigation when a match is selected
     LaunchedEffect(uiState.selectedEvidenceId) {
-        uiState.selectedEvidenceId?.let {
-            onNavigateToEvidenceDetail(it)
+        val id = uiState.selectedEvidenceId
+        if (!id.isNullOrEmpty()) {
+            onNavigateToEvidenceDetail(id)
             // Clear the selection after navigation
             viewModel.selectMatch("")
         }
@@ -97,7 +105,6 @@ fun SearchScreen(
                     }
                 },
                 actions = {
-                    // Clear results button
                     if (uiState.hasSearched && uiState.matchedEvidence.isNotEmpty()) {
                         IconButton(onClick = viewModel::clearResults) {
                             Icon(
@@ -140,7 +147,8 @@ fun SearchScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     // Error message
-                    if (uiState.error != null) {
+                    val errorMsg = uiState.error
+                    if (errorMsg != null) {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             colors = CardDefaults.cardColors(
@@ -162,7 +170,7 @@ fun SearchScreen(
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Text(
-                                    text = uiState.error,
+                                    text = errorMsg,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Error,
                                     modifier = Modifier.weight(1f)
@@ -182,7 +190,7 @@ fun SearchScreen(
                         }
                     }
 
-                    // Search mode selector (tabs or chips)
+                    // Search mode selector
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -192,7 +200,6 @@ fun SearchScreen(
                                 selected = uiState.searchMode == mode,
                                 onClick = {
                                     viewModel.setSearchMode(mode)
-                                    // Clear previous results
                                     viewModel.clearResults()
                                 },
                                 label = {
@@ -227,8 +234,7 @@ fun SearchScreen(
                                     if (uiState.querySha256.isValidSha256()) {
                                         viewModel.performSearch()
                                     } else {
-                                        // Show error via viewModel?
-                                        viewModel.setQuerySha256(uiState.querySha256) // trigger validation?
+                                        viewModel.setQuerySha256(uiState.querySha256)
                                     }
                                 },
                                 isLoading = uiState.isLoading,
@@ -253,7 +259,6 @@ fun SearchScreen(
                             )
                         }
                         SearchMode.METADATA -> {
-                            // Not implemented in MVP
                             Text(
                                 text = "Metadata search not implemented in MVP.",
                                 style = MaterialTheme.typography.bodySmall,
@@ -287,7 +292,6 @@ fun SearchScreen(
                                 }
                             }
                         } else {
-                            // Results count
                             Text(
                                 text = "Found ${uiState.totalMatches} match${if (uiState.totalMatches > 1) "es" else ""}",
                                 style = MaterialTheme.typography.titleSmall,
@@ -305,7 +309,8 @@ fun SearchScreen(
                     // Results list
                     if (uiState.hasSearched && uiState.matchedEvidence.isNotEmpty()) {
                         LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.heightIn(max = 600.dp)
                         ) {
                             items(uiState.matchedEvidence) { match ->
                                 SearchResultItem(
@@ -324,7 +329,6 @@ fun SearchScreen(
         )
     }
 }
-
 /**
  * Exact search input with text field and search button.
  */
@@ -403,7 +407,6 @@ private fun SimilaritySearchInput(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // MediaPicker for file selection
         MediaPicker(
             mediaType = MediaPickerType.IMAGE_AND_VIDEO,
             onResult = { result ->
@@ -412,10 +415,10 @@ private fun SimilaritySearchInput(
                         onFileSelected(result.file, result.mediaType)
                     }
                     is MediaPickerResult.Error -> {
-                        // Show error
+                        // handled by viewModel error
                     }
                     is MediaPickerResult.Cancelled -> {
-                        // Do nothing
+                        // no-op
                     }
                 }
             },
@@ -446,7 +449,8 @@ private fun SimilaritySearchInput(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = if (mediaType == Constants.MEDIA_TYPE_IMAGE) Icons.Default.Image else Icons.Default.Video,
+                            imageVector = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE)
+                                Icons.Default.Image else Icons.Default.Videocam,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -462,7 +466,7 @@ private fun SimilaritySearchInput(
                         )
                     }
                     IconButton(
-                        onClick = { onFileSelected(selectedFile, mediaType) }, // Re-select? Actually clear?
+                        onClick = { onFileSelected(selectedFile, mediaType) },
                         modifier = Modifier.size(28.dp)
                     ) {
                         Icon(
@@ -495,7 +499,6 @@ private fun SimilaritySearchInput(
         }
     }
 }
-
 /**
  * Single search result item.
  */
@@ -524,7 +527,6 @@ private fun SearchResultItem(
             Column(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Match type with icon
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -537,13 +539,13 @@ private fun SearchResultItem(
                             else -> Icons.Default.Info
                         },
                         contentDescription = null,
-                        tint = match.getMatchTypeColor(),
+                        tint = Color(match.getMatchTypeColor()),
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
                         text = match.getMatchTypeLabel(),
                         style = MaterialTheme.typography.labelMedium,
-                        color = match.getMatchTypeColor(),
+                        color = Color(match.getMatchTypeColor()),
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -552,7 +554,7 @@ private fun SearchResultItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis
                 )
                 if (match.sha256 != null) {
                     Text(
@@ -563,7 +565,8 @@ private fun SearchResultItem(
                 }
             }
             // Score
-            if (match.similarityScore != null) {
+            val simScore = match.similarityScore
+            if (simScore != null) {
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
@@ -574,8 +577,8 @@ private fun SearchResultItem(
                             fontSize = 18.sp
                         ),
                         color = when {
-                            match.similarityScore >= 0.8 -> Success
-                            match.similarityScore >= 0.5 -> Warning
+                            simScore >= 0.8 -> Success
+                            simScore >= 0.5 -> Warning
                             else -> Error
                         }
                     )
