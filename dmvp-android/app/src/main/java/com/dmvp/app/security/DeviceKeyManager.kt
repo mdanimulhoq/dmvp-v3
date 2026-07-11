@@ -130,4 +130,22 @@ object DeviceKeyManager {
             null
         }
     }
+
+    /**
+     * Sign raw bytes with the device's private key, returning the raw
+     * (non-Base64) signature bytes. Used by SignatureUtils, which handles
+     * its own Base64 encoding for both String and ByteArray inputs.
+     */
+    fun signData(data: ByteArray): ByteArray? {
+        return try {
+            val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey ?: return null
+            val signature = Signature.getInstance(DmvpConstants.SIGNATURE_ALGORITHM)
+            signature.initSign(privateKey)
+            signature.update(data)
+            signature.sign()
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to sign data", e)
+            null
+        }
+    }
 }
