@@ -17,10 +17,13 @@ val DeepPurple700 = Color(0xFF400066)
 val DeepPurple600 = Color(0xFF5C0088)
 val DeepPurple500 = Color(0xFF7A00B3)
 val DeepPurple400 = Color(0xFF9A00D9)
+val DeepPurple200 = Color(0xFFC499E0)
+val DeepPurple100 = Color(0xFFE1CCF0)
 
 // Accent colors (cyan)
 val CyanBright = Color(0xFF00E5FF)
 val Cyan400 = Color(0xFF00B8D4)
+val Cyan100 = Color(0xFFB3F5FF)
 val Cyan700 = Color(0xFF00838F)
 
 // Neutral / surface colors for dark theme
@@ -54,10 +57,10 @@ val DividerDark = Color(0xFF3D3D3D)
 val DividerLight = Color(0xFFCCCCCC)
 
 // Trust tier badges
-val TierABadge = Color(0xFF00E676)   // bright green
-val TierBBadge = Color(0xFFFFD740)   // amber
-val TierCBadge = Color(0xFFFF6D00)   // orange
-val TierDBadge = Color(0xFFE53935)   // red
+val TierABadge = Color(0xFF00E676)
+val TierBBadge = Color(0xFFFFD740)
+val TierCBadge = Color(0xFFFF6D00)
+val TierDBadge = Color(0xFFE53935)
 
 // Evidence quality colors
 val HighQuality = Success
@@ -73,5 +76,3 @@ val SimilarityNone = Error
 
 // Background for dark theme
 val DarkBackground = Color(0xFF0A0A0A)
-
-// Material3 color schemes will be defined in Theme.kt using these colors.
