@@ -24,6 +24,7 @@ package com.dmvp.app.ui.components
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -41,6 +42,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmvp.app.ui.theme.*
+import kotlinx.coroutines.delay
 
 /**
  * Loading state for the overlay.
@@ -194,7 +196,7 @@ fun LoadingOverlay(
                             OutlinedButton(
                                 onClick = onCancel,
                                 modifier = Modifier.fillMaxWidth(),
-                                colors = OutlinedButtonDefaults.outlinedButtonColors(
+                                colors = ButtonDefaults.outlinedButtonColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                                 )
                             ) {
