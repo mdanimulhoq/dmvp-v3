@@ -22,6 +22,7 @@ import com.dmvp.app.data.model.KeyframeFingerprint
 import com.dmvp.app.data.model.RobustFingerprint
 import kotlin.math.cos
 import kotlin.math.sqrt
+import timber.log.Timber
 
 private const val TAG = "FingerprintUtils"
 
@@ -46,7 +47,7 @@ object FingerprintUtils {
             val bitmap = BitmapFactory.decodeFile(filePath) ?: return null
             generateImageFingerprint(bitmap, algorithmVersion)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate image fingerprint from file: $filePath", e)
+            Timber.e(e, "Failed to generate image fingerprint from file: $filePath")
             null
         }
     }
@@ -120,7 +121,7 @@ object FingerprintUtils {
                 embedding = null
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate image fingerprint from bitmap", e)
+            Timber.e(e, "Failed to generate image fingerprint from bitmap")
             null
         }
     }
@@ -148,7 +149,7 @@ object FingerprintUtils {
             val durationStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
             val durationMs = durationStr?.toLongOrNull() ?: 0L
             if (durationMs <= 0) {
-                Log.w(TAG, "Video duration is zero or invalid")
+                Timber.w("Video duration is zero or invalid")
                 retriever.release()
                 return null
             }
@@ -194,7 +195,7 @@ object FingerprintUtils {
                 motionSummary = null
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate video fingerprint", e)
+            Timber.e(e, "Failed to generate video fingerprint")
             null
         }
     }
