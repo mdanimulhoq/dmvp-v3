@@ -33,6 +33,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
+import timber.log.Timber
 
 private const val TAG = "DMVPRepository"
 
@@ -83,7 +84,7 @@ class DMVPRepository(private val context: Context) {
                 }
 
                 // No key, generate new one
-                Log.d(TAG, "Generating new device key")
+                Timber.d("Generating new device key")
                 val attestationChallenge = UUID.randomUUID().toString().toByteArray()
                 val result = DeviceKeyManager.generateDeviceKey(context, attestationChallenge)
                 if (result == null) {
@@ -116,7 +117,7 @@ class DMVPRepository(private val context: Context) {
 
                 Result.Success(Pair(deviceKeyId, publicKeyBase64))
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to get or create device key", e)
+                Timber.e(e, "Failed to get or create device key")
                 Result.Error(exception = e, message = e.message)
             }
         }
@@ -154,7 +155,7 @@ class DMVPRepository(private val context: Context) {
     /**
      * Build attestation summary from certificate chain.
      */
-     private fun buildAttestationSummary(certChain: List<java.security.cert.X509Certificate>): AttestationSummary {
+    private fun buildAttestationSummary(certChain: List<java.security.cert.X509Certificate>): AttestationSummary {
         return AttestationSummary(
             valid = true,
             hardwareBacked = DeviceKeyManager.isHardwareBacked(),
@@ -271,7 +272,7 @@ class DMVPRepository(private val context: Context) {
                     )
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Registration failed", e)
+                Timber.e(e, "Registration failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -315,7 +316,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Verification failed", e)
+                Timber.e(e, "Verification failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -330,7 +331,8 @@ class DMVPRepository(private val context: Context) {
 
     /**
      * Verify a file by generating fingerprint and hash.
-     */suspend fun verifyFile(
+     */
+    suspend fun verifyFile(
         file: File,
         mediaType: String,
         mode: String = "standard"
@@ -360,7 +362,7 @@ class DMVPRepository(private val context: Context) {
                     canonicalHash = canonicalHash
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "File verification failed", e)
+                Timber.e(e, "File verification failed")
                 Result.Error(exception = e, message = e.message)
             }
         }
@@ -399,7 +401,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Search failed", e)
+                Timber.e(e, "Search failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -428,7 +430,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Get related evidence failed", e)
+                Timber.e(e, "Get related evidence failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -480,7 +482,7 @@ class DMVPRepository(private val context: Context) {
 
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Device rotation failed", e)
+                Timber.e(e, "Device rotation failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -509,7 +511,7 @@ class DMVPRepository(private val context: Context) {
                 }
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Device revocation failed", e)
+                Timber.e(e, "Device revocation failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -525,7 +527,7 @@ class DMVPRepository(private val context: Context) {
     /**
      * Recover device lineage.
      */
-     suspend fun recoverDeviceLineage(
+    suspend fun recoverDeviceLineage(
         oldDeviceKeyId: String,
         newDeviceKeyId: String,
         newPublicKey: String,
@@ -555,7 +557,7 @@ class DMVPRepository(private val context: Context) {
 
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Device recovery failed", e)
+                Timber.e(e, "Device recovery failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -580,7 +582,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Get device key failed", e)
+                Timber.e(e, "Get device key failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -613,7 +615,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "List device keys failed", e)
+                Timber.e(e, "List device keys failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -663,7 +665,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Ownership claim submission failed", e)
+                Timber.e(e, "Ownership claim submission failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -688,7 +690,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Get ownership claims failed", e)
+                Timber.e(e, "Get ownership claims failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -724,7 +726,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Review ownership claim failed", e)
+                Timber.e(e, "Review ownership claim failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -753,7 +755,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Backup media failed", e)
+                Timber.e(e, "Backup media failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -776,7 +778,7 @@ class DMVPRepository(private val context: Context) {
                 )
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Restore media failed", e)
+                Timber.e(e, "Restore media failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -795,7 +797,7 @@ class DMVPRepository(private val context: Context) {
                 val response = apiService.getPremiumStatus(auth = "")
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Get premium status failed", e)
+                Timber.e(e, "Get premium status failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -818,7 +820,7 @@ class DMVPRepository(private val context: Context) {
                 val response = apiService.getVerificationPolicy(auth = "")
                 Result.Success(response)
             } catch (e: Exception) {
-                Log.e(TAG, "Get verification policy failed", e)
+                Timber.e(e, "Get verification policy failed")
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
@@ -837,4 +839,3 @@ class DMVPRepository(private val context: Context) {
 // ============================
 
 typealias RepositoryResult<T> = Result<T>
-     
