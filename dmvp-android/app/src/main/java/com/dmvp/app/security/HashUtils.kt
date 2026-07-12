@@ -24,6 +24,7 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import kotlin.math.min
+import timber.log.Timber
 
 /**
  * SHA-256 hash utilities.
@@ -120,6 +121,7 @@ object HashUtils {
             sha256(jpegBytes)
         } catch (e: Exception) {
             // On error, fallback to null (or original hash? but we return null to indicate canonical not available)
+            Timber.e(e, "Failed to compute canonical hash for image")
             null
         }
     }
@@ -203,6 +205,7 @@ object HashUtils {
                     usedWeight += weight
                 } catch (e: Exception) {
                     // Skip this field on error
+                    Timber.e(e, "Failed to compare fingerprint for field: $field")
                 }
             }
         }
