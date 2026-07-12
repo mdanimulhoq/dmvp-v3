@@ -87,6 +87,7 @@ fun HomeScreen(
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Welcome section
             item {
                 Column(
                     modifier = Modifier
@@ -113,6 +114,7 @@ fun HomeScreen(
                 }
             }
 
+            // Quick Actions title
             item {
                 Text(
                     text = "Quick Actions",
@@ -122,12 +124,15 @@ fun HomeScreen(
                 )
             }
 
+            // Quick Actions Grid — সরাসরি LazyColumn-এর item হিসেবে
             item {
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(2),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(280.dp) // fixed height দিলাম
                 ) {
                     items(actionItems) { action ->
                         ActionCard(
@@ -147,6 +152,7 @@ fun HomeScreen(
                 }
             }
 
+            // Recent Activity section
             item {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
@@ -194,6 +200,7 @@ fun HomeScreen(
                 }
             }
 
+            // Footer
             item {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
