@@ -22,7 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.dmvp.app.data.model.DeviceTrustTier
 import com.dmvp.app.ui.components.CEEPreview
 import com.dmvp.app.ui.components.LoadingOverlay
@@ -42,7 +42,7 @@ fun RegisterScreen(
     onNavigateToHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel: RegisterViewModel = viewModel()
+    val viewModel: RegisterViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(uiState.isRegistered) {
