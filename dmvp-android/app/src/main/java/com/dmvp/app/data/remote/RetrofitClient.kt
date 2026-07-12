@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import timber.log.Timber
 
 /**
  * Custom exception for API errors returned by the DMVP backend.
@@ -40,6 +41,7 @@ object RetrofitClient {
      */
     fun init() {
         if (retrofit == null) {
+            Timber.d("Initializing Retrofit client")
             val okHttpClient = OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
@@ -53,6 +55,7 @@ object RetrofitClient {
                 .build()
 
             apiService = retrofit!!.create(ApiService::class.java)
+            Timber.d("Retrofit client initialized successfully")
         }
     }
 
@@ -72,6 +75,7 @@ object RetrofitClient {
      */
     fun setDeviceKeyId(deviceKeyId: String) {
         this.deviceKeyId = deviceKeyId
+        Timber.d("Device key ID set: $deviceKeyId")
     }
 
     /**
@@ -84,5 +88,6 @@ object RetrofitClient {
      */
     fun clearSession() {
         deviceKeyId = null
+        Timber.d("Session cleared")
     }
 }
