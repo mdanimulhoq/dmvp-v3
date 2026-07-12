@@ -1,13 +1,21 @@
 package com.dmvp.app
 
 import android.app.Application
+import com.dmvp.app.data.repository.DMVPRepository
+import com.dmvp.app.data.repository.Result
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import timber.log.Timber
 
 private const val TAG = "DMVPApplication"
 
 @HiltAndroidApp
 class DMVPApplication : Application() {
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onCreate() {
         super.onCreate()
@@ -16,6 +24,7 @@ class DMVPApplication : Application() {
         initializeNetwork()
         initializeSecurity()
         initializeCrashReporting()
+        initializeDeviceRegistration()
 
         Timber.tag(TAG).d("DMVP v3.0 Application initialized")
     }
@@ -48,6 +57,36 @@ class DMVPApplication : Application() {
             }
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to initialize security")
+        }
+    }
+
+    private fun initializeDeviceRegistration() {
+        applicationScope.launch {
+            try {
+                Timber.tag(TAG).d("Auto device registration started")
+
+                val repository = DMVPRepository(applicationContext)
+
+                when (val result = repository.getOrCreateDeviceKey()) {
+                    is Result.Success -> {
+                        val deviceKeyId = result.data.first
+                        val trustTier = repository.getCachedTrustTier() ?: "unknown"
+
+                        Timber.tag(TAG).d(
+                            "Auto device registration confirmed: deviceKeyId=$deviceKeyId trustTier=$trustTier"
+                        )
+                    }
+
+                    is Result.Error -> {
+                        Timber.tag(TAG).e(
+                            result.exception,
+                            "Auto device registration failed: errorCode=${result.errorCode} message=${result.message}"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Timber.tag(TAG).e(e, "Auto device registration failed safely")
+            }
         }
     }
 
