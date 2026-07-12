@@ -33,6 +33,7 @@ import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.RegisterViewModel
 import com.dmvp.app.ui.viewmodel.getStepDescription
 import com.dmvp.app.ui.viewmodel.isReadyToSubmit
+import timber.log.Timber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
