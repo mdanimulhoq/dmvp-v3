@@ -31,6 +31,7 @@ import com.dmvp.app.data.model.getDisplayName
 import com.dmvp.app.ui.components.TrustTierBadge
 import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
+import timber.log.Timber
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +43,8 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val trustTier = DeviceTrustTier.TIER_A // placeholder
+
+    Timber.d("HomeScreen rendered, trustTier: $trustTier")
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
