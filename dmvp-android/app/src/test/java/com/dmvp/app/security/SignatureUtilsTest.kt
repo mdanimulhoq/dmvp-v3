@@ -5,7 +5,9 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.security.KeyPair
 import java.security.KeyPairGenerator
+import java.security.PrivateKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.util.Base64
@@ -16,7 +18,7 @@ class SignatureUtilsTest {
     fun verifySignature_validEcdsaSignature_returnsTrue() {
         val keyPair = generateEcKeyPair()
         val data = "dmvp signature verification payload".toByteArray(Charsets.UTF_8)
-        val signatureBase64 = signForTest(data, keyPair.private.encoded, keyPair.private.algorithm)
+        val signatureBase64 = signWithPrivateKeyForTest(data, keyPair.private)
         val publicKeyBase64 = Base64.getEncoder().encodeToString(keyPair.public.encoded)
 
         val verified = SignatureUtils.verifySignature(
@@ -115,7 +117,7 @@ class SignatureUtilsTest {
         )
     }
 
-    private fun generateEcKeyPair(): java.security.KeyPair {
+    private fun generateEcKeyPair(): KeyPair {
         val generator = KeyPairGenerator.getInstance("EC")
         generator.initialize(ECGenParameterSpec("secp256r1"))
         return generator.generateKeyPair()
@@ -123,24 +125,12 @@ class SignatureUtilsTest {
 
     private fun signWithPrivateKeyForTest(
         data: ByteArray,
-        privateKey: java.security.PrivateKey
+        privateKey: PrivateKey
     ): String {
         val signer = Signature.getInstance("SHA256withECDSA")
         signer.initSign(privateKey)
         signer.update(data)
 
         return Base64.getEncoder().encodeToString(signer.sign())
-    }
-
-    private fun signForTest(
-        data: ByteArray,
-        privateKeyBytes: ByteArray,
-        algorithm: String
-    ): String {
-        require(privateKeyBytes.isNotEmpty())
-        require(algorithm == "EC")
-
-        val keyPair = generateEcKeyPair()
-        return signWithPrivateKeyForTest(data, keyPair.private)
     }
 }
