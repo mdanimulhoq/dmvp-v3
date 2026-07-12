@@ -22,6 +22,7 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.cert.X509Certificate
 import java.security.spec.ECGenParameterSpec
+import timber.log.Timber
 
 private const val TAG = "DeviceKeyManager"
 private const val ANDROID_KEYSTORE = "AndroidKeyStore"
@@ -40,7 +41,7 @@ object DeviceKeyManager {
         return try {
             keyStore.containsAlias(KEY_ALIAS)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to check for device key", e)
+            Timber.e(e, "Failed to check for device key")
             false
         }
     }
@@ -53,7 +54,7 @@ object DeviceKeyManager {
             val cert = keyStore.getCertificate(KEY_ALIAS) ?: return null
             Base64.encodeToString(cert.publicKey.encoded, Base64.NO_WRAP)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get public key", e)
+            Timber.e(e, "Failed to get public key")
             null
         }
     }
@@ -93,7 +94,7 @@ object DeviceKeyManager {
             val publicKey = getPublicKey() ?: return null
             Pair(publicKey, certChain)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to generate device key", e)
+            Timber.e(e, "Failed to generate device key")
             null
         }
     }
@@ -109,7 +110,7 @@ object DeviceKeyManager {
             val keyInfo = factory.getKeySpec(privateKey, KeyInfo::class.java) as KeyInfo
             keyInfo.isInsideSecureHardware
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to check hardware-backed status", e)
+            Timber.e(e, "Failed to check hardware-backed status")
             false
         }
     }
@@ -126,7 +127,7 @@ object DeviceKeyManager {
             signature.update(data.toByteArray(Charsets.UTF_8))
             Base64.encodeToString(signature.sign(), Base64.NO_WRAP)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sign string", e)
+            Timber.e(e, "Failed to sign string")
             null
         }
     }
@@ -144,7 +145,7 @@ object DeviceKeyManager {
             signature.update(data)
             signature.sign()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sign data", e)
+            Timber.e(e, "Failed to sign data")
             null
         }
     }
@@ -162,7 +163,7 @@ object DeviceKeyManager {
                 "platform" to "android"
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to get attestation summary", e)
+            Timber.e(e, "Failed to get attestation summary")
             emptyMap()
         }
     }
