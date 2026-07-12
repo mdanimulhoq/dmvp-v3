@@ -51,6 +51,7 @@ import com.dmvp.app.ui.components.TrustTierBadgeSize
 import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.DeviceOperation
 import com.dmvp.app.ui.viewmodel.DeviceViewModel
+import timber.log.Timber
 
 /**
  * DeviceScreen composable.
@@ -631,7 +632,7 @@ private fun DeviceListItem(
 /**
  * Recovery flow input.
  */
- @Composable
+@Composable
 private fun RecoveryFlow(
     oldDeviceKeyId: String,
     onOldKeyIdChange: (String) -> Unit,
