@@ -1,20 +1,11 @@
-/**
- * app/src/main/java/com/dmvp/app/security/DeviceKeyManager.kt
- *
- * Manages the device's cryptographic signing key inside the Android
- * Keystore. Generates an EC key pair with hardware attestation,
- * checks hardware-backing status, and signs data for the DMVP protocol.
- */
-
 package com.dmvp.app.security
 
-import android.content.Context
+import android.os.Build
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.util.Base64
-import android.util.Log
-import com.dmvp.app.utils.DmvpConstants
+import timber.log.Timber
 import java.security.KeyFactory
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -22,52 +13,48 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.cert.X509Certificate
 import java.security.spec.ECGenParameterSpec
-import timber.log.Timber
 
 private const val TAG = "DeviceKeyManager"
 private const val ANDROID_KEYSTORE = "AndroidKeyStore"
 private const val KEY_ALIAS = "dmvp_device_signing_key"
+private const val EC_CURVE = "secp256r1"
+private const val SIGNATURE_ALGORITHM = "SHA256withECDSA"
 
 object DeviceKeyManager {
 
-    private val keyStore: KeyStore by lazy {
-        KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
-    }
+    private val keyStore: KeyStore
+        get() = KeyStore.getInstance(ANDROID_KEYSTORE).apply {
+            load(null)
+        }
 
-    /**
-     * Check whether a device signing key already exists in the Keystore.
-     */
     fun hasDeviceKey(): Boolean {
         return try {
             keyStore.containsAlias(KEY_ALIAS)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to check for device key")
+            Timber.tag(TAG).e(e, "Failed to check for device key")
             false
         }
     }
 
-    /**
-     * Get the current public key, Base64-encoded. Returns null if no key exists.
-     */
     fun getPublicKey(): String? {
         return try {
-            val cert = keyStore.getCertificate(KEY_ALIAS) ?: return null
-            Base64.encodeToString(cert.publicKey.encoded, Base64.NO_WRAP)
+            val certificate = keyStore.getCertificate(KEY_ALIAS) ?: return null
+            Base64.encodeToString(certificate.publicKey.encoded, Base64.NO_WRAP)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get public key")
+            Timber.tag(TAG).e(e, "Failed to get public key")
             null
         }
     }
 
-    /**
-     * Generate a new EC device key pair inside the Android Keystore,
-     * requesting hardware attestation with the given challenge.
-     * Returns (Base64-encoded public key, certificate chain), or null on failure.
-     */
-    fun generateDeviceKey(context: Context, attestationChallenge: ByteArray): Pair<String, List<X509Certificate>>? {
+    fun generateDeviceKey(
+        context: android.content.Context,
+        attestationChallenge: ByteArray
+    ): Pair<String, List<X509Certificate>>? {
         return try {
-            if (keyStore.containsAlias(KEY_ALIAS)) {
-                keyStore.deleteEntry(KEY_ALIAS)
+            val store = keyStore
+
+            if (store.containsAlias(KEY_ALIAS)) {
+                store.deleteEntry(KEY_ALIAS)
             }
 
             val keyPairGenerator = KeyPairGenerator.getInstance(
@@ -75,96 +62,135 @@ object DeviceKeyManager {
                 ANDROID_KEYSTORE
             )
 
-            val spec = KeyGenParameterSpec.Builder(
+            val builder = KeyGenParameterSpec.Builder(
                 KEY_ALIAS,
                 KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
             )
-                .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
+                .setAlgorithmParameterSpec(ECGenParameterSpec(EC_CURVE))
                 .setDigests(KeyProperties.DIGEST_SHA256)
-                .setAttestationChallenge(attestationChallenge)
-                .build()
+                .setUserAuthenticationRequired(false)
+                .setRandomizedEncryptionRequired(false)
 
-            keyPairGenerator.initialize(spec)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                builder.setInvalidatedByBiometricEnrollment(false)
+            }
+
+            if (attestationChallenge.isNotEmpty()) {
+                builder.setAttestationChallenge(attestationChallenge)
+            }
+
+            keyPairGenerator.initialize(builder.build())
             keyPairGenerator.generateKeyPair()
 
-            val certChain = keyStore.getCertificateChain(KEY_ALIAS)
+            val certificateChain = store.getCertificateChain(KEY_ALIAS)
                 ?.filterIsInstance<X509Certificate>()
                 ?: emptyList()
 
             val publicKey = getPublicKey() ?: return null
-            Pair(publicKey, certChain)
+
+            Timber.tag(TAG).d(
+                "Device key generated: curve=$EC_CURVE hardwareBacked=${isHardwareBacked()} certCount=${certificateChain.size}"
+            )
+
+            Pair(publicKey, certificateChain)
         } catch (e: Exception) {
-            Timber.e(e, "Failed to generate device key")
+            Timber.tag(TAG).e(e, "Failed to generate device key")
             null
         }
     }
 
-    /**
-     * Whether the current device key is backed by dedicated secure hardware
-     * (StrongBox or TEE).
-     */
     fun isHardwareBacked(): Boolean {
         return try {
-            val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey ?: return false
-            val factory = KeyFactory.getInstance(privateKey.algorithm, ANDROID_KEYSTORE)
-            val keyInfo = factory.getKeySpec(privateKey, KeyInfo::class.java) as KeyInfo
+            val privateKey = getPrivateKey() ?: return false
+            val keyFactory = KeyFactory.getInstance(
+                privateKey.algorithm,
+                ANDROID_KEYSTORE
+            )
+
+            val keyInfo = keyFactory.getKeySpec(
+                privateKey,
+                KeyInfo::class.java
+            ) as KeyInfo
+
             keyInfo.isInsideSecureHardware
         } catch (e: Exception) {
-            Timber.e(e, "Failed to check hardware-backed status")
+            Timber.tag(TAG).e(e, "Failed to check hardware-backed status")
             false
         }
     }
 
-    /**
-     * Sign an arbitrary string with the device's private key.
-     * Returns a Base64-encoded signature, or null on failure.
-     */
-    fun signString(data: String): String? {
-        return try {
-            val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey ?: return null
-            val signature = Signature.getInstance(DmvpConstants.SIGNATURE_ALGORITHM)
-            signature.initSign(privateKey)
-            signature.update(data.toByteArray(Charsets.UTF_8))
-            Base64.encodeToString(signature.sign(), Base64.NO_WRAP)
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to sign string")
-            null
+    fun getTrustTierName(): String {
+        return if (isHardwareBacked()) {
+            "TIER_B"
+        } else {
+            "TIER_C"
         }
     }
 
-    /**
-     * Sign raw bytes with the device's private key, returning the raw
-     * (non-Base64) signature bytes. Used by SignatureUtils, which handles
-     * its own Base64 encoding for both String and ByteArray inputs.
-     */
+    fun signString(data: String): String? {
+        return signData(data.toByteArray(Charsets.UTF_8))?.let { signatureBytes ->
+            Base64.encodeToString(signatureBytes, Base64.NO_WRAP)
+        }
+    }
+
     fun signData(data: ByteArray): ByteArray? {
         return try {
-            val privateKey = keyStore.getKey(KEY_ALIAS, null) as? PrivateKey ?: return null
-            val signature = Signature.getInstance(DmvpConstants.SIGNATURE_ALGORITHM)
+            val privateKey = getPrivateKey() ?: return null
+            val signature = Signature.getInstance(SIGNATURE_ALGORITHM)
+
             signature.initSign(privateKey)
             signature.update(data)
+
             signature.sign()
         } catch (e: Exception) {
-            Timber.e(e, "Failed to sign data")
+            Timber.tag(TAG).e(e, "Failed to sign data")
             null
         }
     }
 
-    /**
-     * Get a summary of the current device key's attestation status.
-     * Returns an empty map if no device key exists.
-     */
     fun getAttestationSummary(): Map<String, Any> {
         return try {
-            if (!hasDeviceKey()) return emptyMap()
+            if (!hasDeviceKey()) {
+                return emptyMap()
+            }
+
+            val hardwareBacked = isHardwareBacked()
+
             mapOf(
                 "valid" to true,
-                "hardware_backed" to isHardwareBacked(),
-                "platform" to "android"
+                "hardware_backed" to hardwareBacked,
+                "trust_tier" to getTrustTierName(),
+                "platform" to "android",
+                "key_algorithm" to KeyProperties.KEY_ALGORITHM_EC,
+                "curve" to EC_CURVE,
+                "signature_algorithm" to SIGNATURE_ALGORITHM,
+                "inside_secure_hardware" to hardwareBacked,
+                "attestation_mode" to "android_keystore_certificate_chain"
             )
         } catch (e: Exception) {
-            Timber.e(e, "Failed to get attestation summary")
+            Timber.tag(TAG).e(e, "Failed to get attestation summary")
             emptyMap()
+        }
+    }
+
+    fun deleteDeviceKeyForRecoveryOnly(): Boolean {
+        return try {
+            if (keyStore.containsAlias(KEY_ALIAS)) {
+                keyStore.deleteEntry(KEY_ALIAS)
+            }
+            true
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to delete device key")
+            false
+        }
+    }
+
+    private fun getPrivateKey(): PrivateKey? {
+        return try {
+            keyStore.getKey(KEY_ALIAS, null) as? PrivateKey
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to load private key")
+            null
         }
     }
 }
