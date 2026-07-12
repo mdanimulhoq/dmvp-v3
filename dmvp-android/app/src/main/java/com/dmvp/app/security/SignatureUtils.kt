@@ -21,6 +21,7 @@ import java.security.Signature
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.atomic.AtomicLong
+import timber.log.Timber
 
 private const val TAG = "SignatureUtils"
 
@@ -77,7 +78,7 @@ object SignatureUtils {
             val sortedJson = sortJson(jsonElement)
             return gson.toJson(sortedJson)
         } catch (e: JsonSyntaxException) {
-            Log.e(TAG, "Failed to canonicalize JSON, falling back to original", e)
+            Timber.e(e, "Failed to canonicalize JSON, falling back to original")
             return json
         }
     }
@@ -123,7 +124,7 @@ object SignatureUtils {
             val canonical = canonicalizePayload(payload)
             signString(canonical)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sign payload", e)
+            Timber.e(e, "Failed to sign payload")
             null
         }
     }
@@ -139,7 +140,7 @@ object SignatureUtils {
             val signatureBytes = DeviceKeyManager.signData(data.toByteArray(Charsets.UTF_8))
             signatureBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sign string", e)
+            Timber.e(e, "Failed to sign string")
             null
         }
     }
@@ -154,7 +155,7 @@ object SignatureUtils {
             val signatureBytes = DeviceKeyManager.signData(data)
             signatureBytes?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to sign bytes", e)
+            Timber.e(e, "Failed to sign bytes")
             null
         }
     }
@@ -172,7 +173,7 @@ object SignatureUtils {
             val publicKeyBytes = Base64.decode(publicKeyBase64, Base64.NO_WRAP)
             verifySignature(data.toByteArray(Charsets.UTF_8), signatureBytes, publicKeyBytes)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to verify signature", e)
+            Timber.e(e, "Failed to verify signature")
             false
         }
     }
@@ -195,7 +196,7 @@ object SignatureUtils {
             sig.update(data)
             sig.verify(signature)
         } catch (e: Exception) {
-            Log.e(TAG, "Signature verification failed", e)
+            Timber.e(e, "Signature verification failed")
             false
         }
     }
@@ -259,7 +260,7 @@ object SignatureUtils {
             val canonicalRequest = "$canonicalPayload\n$nonce\n$timestamp"
             verifySignature(canonicalRequest, signatureBase64, publicKeyBase64)
         } catch (e: Exception) {
-            Log.e(TAG, "Request signature verification failed", e)
+            Timber.e(e, "Request signature verification failed")
             false
         }
     }
