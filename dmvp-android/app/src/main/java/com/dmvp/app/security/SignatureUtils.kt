@@ -46,7 +46,7 @@ object SignatureUtils {
     fun canonicalizePayload(payload: Any): String {
         return try {
             val json = gson.toJson(payload)
-            val jsonElement = JsonParser.parseString(json)
+            val jsonElement = JsonParser().parse(json)
             gson.toJson(sortJson(jsonElement))
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to canonicalize payload")
