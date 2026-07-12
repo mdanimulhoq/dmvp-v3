@@ -76,6 +76,7 @@ import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import kotlinx.coroutines.guava.await
+import timber.log.Timber
 
 private const val TAG = "MediaPicker"
 private const val FILE_PROVIDER_AUTHORITY = "${BuildConfig.APPLICATION_ID}.fileprovider"
@@ -230,7 +231,7 @@ private fun MediaPickerOption(
 /**
  * Camera view composable using CameraX.
  */
- @Composable
+@Composable
 private fun CameraView(
     context: Context,
     mediaType: MediaPickerType,
@@ -306,7 +307,7 @@ private fun CameraView(
                 )
 
             } catch (e: Exception) {
-                Log.e(TAG, "Camera initialization failed", e)
+                Timber.e(e, "Camera initialization failed")
                 onResult(MediaPickerResult.Error("Camera initialization failed: ${e.message}"))
                 onClose()
             }
@@ -465,7 +466,7 @@ private fun CameraView(
  * For video, returns the active [Recording] so the caller can stop it later;
  * returns null for image capture (which completes via callback) or on failure.
  */
- private fun captureMedia(
+private fun captureMedia(
     context: Context,
     mediaType: MediaPickerType,
     imageCapture: ImageCapture?,
@@ -494,7 +495,7 @@ private fun CameraView(
                                     )
                                 )
                             } else {
-                                Log.e(TAG, "Video capture error code: ${event.error}")
+                                Timber.e("Video capture error code: ${event.error}")
                                 onResult(MediaPickerResult.Error("Video capture failed (error ${event.error})"))
                             }
                         }
@@ -519,7 +520,7 @@ private fun CameraView(
                         }
 
                         override fun onError(exception: ImageCaptureException) {
-                            Log.e(TAG, "Image capture error", exception)
+                            Timber.e(exception, "Image capture error")
                             onResult(MediaPickerResult.Error("Image capture failed: ${exception.message}"))
                         }
                     }
@@ -533,7 +534,7 @@ private fun CameraView(
             }
         }
     } catch (e: Exception) {
-        Log.e(TAG, "Capture error", e)
+        Timber.e(e, "Capture error")
         onResult(MediaPickerResult.Error("Capture error: ${e.message}"))
         null
     }
@@ -570,7 +571,7 @@ private fun handleMediaUriResult(
         val mediaType = if (mimeType.startsWith("video/")) "video" else "image"
         onResult(MediaPickerResult.Success(file, mediaType, uri))
     } catch (e: Exception) {
-        Log.e(TAG, "Media pick error", e)
+        Timber.e(e, "Media pick error")
         onResult(MediaPickerResult.Error("Failed to load media: ${e.message}"))
     }
 }
@@ -601,7 +602,7 @@ private fun uriToFile(context: Context, uri: Uri): File? {
         }
         file
     } catch (e: Exception) {
-        Log.e(TAG, "URI to file conversion failed", e)
+        Timber.e(e, "URI to file conversion failed")
         null
     }
 }
