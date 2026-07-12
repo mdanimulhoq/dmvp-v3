@@ -4,7 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.util.Log
+import android.content.Intent
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,7 +20,7 @@ import com.dmvp.app.navigation.NavGraph
 import com.dmvp.app.navigation.Screen
 import com.dmvp.app.ui.theme.DMVPTheme
 import dagger.hilt.android.AndroidEntryPoint
-import android.content.Intent
+import timber.log.Timber
 
 private const val TAG = "MainActivity"
 private const val PERMISSION_REQUEST_CODE = 100
@@ -72,7 +72,7 @@ class MainActivity : ComponentActivity() {
             val action = it.action
             val data = it.data
             if (action == Intent.ACTION_VIEW && data != null) {
-                Log.d(TAG, "Deep link: $data")
+                Timber.d("Deep link: $data")
             }
         }
     }
@@ -86,9 +86,9 @@ class MainActivity : ComponentActivity() {
         if (requestCode == PERMISSION_REQUEST_CODE) {
             for (i in permissions.indices) {
                 if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
-                    Log.d(TAG, "Permission granted: ${permissions[i]}")
+                    Timber.d("Permission granted: ${permissions[i]}")
                 } else {
-                    Log.w(TAG, "Permission denied: ${permissions[i]}")
+                    Timber.w("Permission denied: ${permissions[i]}")
                 }
             }
         }
