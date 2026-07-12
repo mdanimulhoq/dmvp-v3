@@ -2,10 +2,13 @@ package com.dmvp.app.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.dmvp.app.ui.screens.CaptureScreen
 import com.dmvp.app.ui.screens.DeviceScreen
+import com.dmvp.app.ui.screens.ErrorScreen
 import com.dmvp.app.ui.screens.HomeScreen
 import com.dmvp.app.ui.screens.RegisterScreen
 import com.dmvp.app.ui.screens.SearchScreen
@@ -57,7 +60,12 @@ fun NavGraph(
                     navController.popBackStack()
                 },
                 onNavigateToVerdictDetail = {
-                    // Phase 3/4: verdict detail route will be added when verdict IDs exist.
+                    navController.navigate(
+                        Screen.Error.createRoute(
+                            title = "Verdict detail unavailable",
+                            message = "Verdict detail screen is not wired yet."
+                        )
+                    )
                 }
             )
         }
@@ -68,7 +76,12 @@ fun NavGraph(
                     navController.popBackStack()
                 },
                 onNavigateToEvidenceDetail = {
-                    // Phase 3: evidence detail route will be added when evidence IDs exist.
+                    navController.navigate(
+                        Screen.Error.createRoute(
+                            title = "Evidence detail unavailable",
+                            message = "Evidence detail screen is not wired yet."
+                        )
+                    )
                 },
                 onNavigateToHome = {
                     navController.popBackStack(
@@ -85,7 +98,12 @@ fun NavGraph(
                     navController.popBackStack()
                 },
                 onNavigateToEvidenceDetail = {
-                    // Phase 3/5: evidence detail route will be added later.
+                    navController.navigate(
+                        Screen.Error.createRoute(
+                            title = "Evidence detail unavailable",
+                            message = "Evidence detail screen is not wired yet."
+                        )
+                    )
                 }
             )
         }
@@ -94,6 +112,44 @@ fun NavGraph(
             DeviceScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Error.route,
+            arguments = listOf(
+                navArgument(Screen.Error.ARG_TITLE) {
+                    type = NavType.StringType
+                    defaultValue = "Something went wrong"
+                },
+                navArgument(Screen.Error.ARG_MESSAGE) {
+                    type = NavType.StringType
+                    defaultValue = "Please go back and try again."
+                }
+            )
+        ) { backStackEntry ->
+            val title = backStackEntry.arguments
+                ?.getString(Screen.Error.ARG_TITLE)
+                ?: "Something went wrong"
+
+            val message = backStackEntry.arguments
+                ?.getString(Screen.Error.ARG_MESSAGE)
+                ?: "Please go back and try again."
+
+            ErrorScreen(
+                title = title,
+                message = message,
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
+                onNavigateHome = {
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Home.route) {
+                            inclusive = false
+                        }
+                        launchSingleTop = true
+                    }
                 }
             )
         }
