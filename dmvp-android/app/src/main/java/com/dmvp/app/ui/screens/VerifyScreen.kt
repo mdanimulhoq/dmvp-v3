@@ -13,12 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.filled.Verified
-import androidx.compose.material.icons.filled.Videocam
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -43,6 +38,7 @@ import com.dmvp.app.ui.theme.Success
 import com.dmvp.app.ui.viewmodel.VerifyViewModel
 import com.dmvp.app.utils.DmvpConstants
 import com.dmvp.app.utils.VerificationConstants
+import timber.log.Timber
 
 /**
  * VerifyScreen composable.
@@ -197,12 +193,15 @@ fun VerifyScreen(
                             onResult = { result ->
                                 when (result) {
                                     is MediaPickerResult.Success -> {
+                                        Timber.d("File selected: ${result.file.name}, type: ${result.mediaType}")
                                         viewModel.setFile(result.file, result.mediaType)
                                     }
                                     is MediaPickerResult.Error -> {
+                                        Timber.e("Media picker error: ${result.message}")
                                         // handled by viewModel
                                     }
                                     is MediaPickerResult.Cancelled -> {
+                                        Timber.d("Media picker cancelled")
                                         // no-op
                                     }
                                 }
