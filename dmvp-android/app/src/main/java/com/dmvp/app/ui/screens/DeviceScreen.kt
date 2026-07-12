@@ -64,7 +64,7 @@ fun DeviceScreen(
     onNavigateBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel: DeviceViewModel = viewModel()
+    val viewModel: DeviceViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
     // Show confirmation dialog if requested
