@@ -21,6 +21,7 @@ const router = express.Router();
 const { authenticate } = require('../middleware/auth');
 const { authRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
+const { normalizeSpkiPublicKey } = require('../utils/cryptoUtils');
 
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
 
@@ -37,6 +38,46 @@ function buildError(status, errorCode, message, detail = null, req = null) {
     policy_version: POLICY_VERSION,
     request_id: req?.requestId || 'unknown',
   };
+}
+
+function normalizePlatform(value) {
+  const platform = String(value || 'android').toUpperCase();
+  return ['ANDROID', 'DESKTOP', 'SERVER', 'OTHER'].includes(platform)
+    ? platform
+    : 'OTHER';
+}
+
+function normalizeTrustTier(requestedTrustTier, hardwareBacked, attestationSummary) {
+  const allowed = new Set(['TIER_A', 'TIER_B', 'TIER_C', 'TIER_D']);
+
+  if (typeof requestedTrustTier === 'string') {
+    const normalized = requestedTrustTier.trim().toUpperCase();
+    if (allowed.has(normalized)) {
+      return normalized;
+    }
+  }
+
+  if (attestationSummary && attestationSummary.valid === false) {
+    return 'TIER_D';
+  }
+
+  return hardwareBacked ? 'TIER_A' : 'TIER_C';
+}
+
+function resolveAttestationStatus(attestationSummary) {
+  if (!attestationSummary) {
+    return 'MISSING';
+  }
+
+  if (attestationSummary.valid === true) {
+    return 'VALID';
+  }
+
+  if (attestationSummary.valid === false) {
+    return 'INVALID';
+  }
+
+  return 'DEGRADED';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -84,76 +125,96 @@ router.get(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /devices/register
-// Register a new device identity
+// Register a new device identity with crypto verification
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.post(
   '/register',
-  authenticate,
   authRateLimit,
   async (req, res, next) => {
     try {
-      const {
-        deviceId,
-        keyId,
-        publicKeyReference,
-        publicKeyPem,
-        platform,
-        signatureAlgorithm,
-        trustTier,
+      const body = req.body || {};
+
+      const deviceKeyId = body.device_key_id || body.deviceKeyId || body.keyId;
+      const rawPublicKey = body.public_key || body.publicKey || body.publicKeyPem;
+      const attestationSummary =
+        body.attestation_summary || body.attestationSummary || null;
+      const requestedTrustTier = body.trust_tier || body.trustTier;
+
+      const hardwareBacked =
+        body.hardware_backed !== undefined
+          ? body.hardware_backed === true
+          : attestationSummary?.hardware_backed === true;
+
+      const platform = normalizePlatform(body.platform);
+      const trustTier = normalizeTrustTier(
+        requestedTrustTier,
         hardwareBacked,
-        attestationStatus,
-        attestationSummary,
-        appPackageName,
-        appVersion,
-        deviceModel,
-        osVersion,
-      } = req.body;
+        attestationSummary
+      );
 
-      // Validation
-      if (!keyId || typeof keyId !== 'string') {
+      if (!deviceKeyId || typeof deviceKeyId !== 'string') {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'keyId is required', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'device_key_id is required', null, req)
         );
       }
 
-      if (!publicKeyPem || typeof publicKeyPem !== 'string') {
+      if (!rawPublicKey || typeof rawPublicKey !== 'string') {
         return res.status(400).json(
-          buildError(400, 'VALIDATION_ERROR', 'publicKeyPem is required', null, req)
+          buildError(400, 'VALIDATION_ERROR', 'public_key is required', null, req)
         );
       }
 
-      // Check duplicate
+      let publicKeyPem;
+      try {
+        publicKeyPem = normalizeSpkiPublicKey(rawPublicKey);
+      } catch (error) {
+        return res.status(400).json(
+          buildError(
+            400,
+            'INVALID_PUBLIC_KEY',
+            'public_key must be a valid ECDSA P-256 SPKI public key in base64 or PEM format',
+            null,
+            req
+          )
+        );
+      }
+
       const existing = await prisma.device.findUnique({
-        where: { keyId },
+        where: { keyId: deviceKeyId },
       });
 
       if (existing) {
         return res.status(409).json(
-          buildError(409, 'DEVICE_EXISTS', 'Device with this keyId already registered', { keyId }, req)
+          buildError(
+            409,
+            'DEVICE_EXISTS',
+            'Device with this device_key_id already registered',
+            { device_key_id: deviceKeyId },
+            req
+          )
         );
       }
 
       const device = await prisma.device.create({
         data: {
-          deviceId: deviceId || undefined,
-          keyId,
-          publicKeyReference: publicKeyReference || keyId,
+          deviceId: body.deviceId || undefined,
+          keyId: deviceKeyId,
+          publicKeyReference: body.publicKeyReference || deviceKeyId,
           publicKeyPem,
-          platform: platform || 'ANDROID',
-          signatureAlgorithm: signatureAlgorithm || 'SHA256withECDSA',
-          trustTier: trustTier || 'TIER_C',
-          hardwareBacked: hardwareBacked !== undefined ? hardwareBacked : false,
-          attestationStatus: attestationStatus || 'MISSING',
+          platform,
+          signatureAlgorithm: body.signatureAlgorithm || 'SHA256withECDSA',
+          trustTier,
+          hardwareBacked,
+          attestationStatus: resolveAttestationStatus(attestationSummary),
           attestationSummary: attestationSummary || null,
-          appPackageName: appPackageName || null,
-          appVersion: appVersion || null,
-          deviceModel: deviceModel || null,
-          osVersion: osVersion || null,
+          appPackageName: body.appPackageName || null,
+          appVersion: body.appVersion || null,
+          deviceModel: body.deviceModel || null,
+          osVersion: body.osVersion || null,
         },
       });
 
-      // Audit log
       await prisma.auditLog.create({
         data: {
           requestId: req.requestId,
@@ -163,31 +224,41 @@ router.post(
           actorKeyId: req.user?.keyId || 'anonymous',
           ipAddress: req.ip,
           details: {
-            keyId,
+            keyId: deviceKeyId,
             trustTier: device.trustTier,
             platform: device.platform,
           },
         },
       });
 
-      console.info(`[Device] Registered: ${keyId} tier=${device.trustTier}`);
+      console.info(`[Device] Registered: ${deviceKeyId} tier=${device.trustTier}`);
 
       return res.status(201).json({
-        success: true,
-        deviceId: device.deviceId,
-        keyId: device.keyId,
-        trustTier: device.trustTier,
-        platform: device.platform,
-        createdAt: device.createdAt,
+        id: device.deviceId,
+        device_key_id: device.keyId,
+        public_key: rawPublicKey,
+        trust_tier: device.trustTier,
+        lifecycle_state: device.revokedAt ? 'REVOKED' : 'ACTIVE',
+        created_at: device.createdAt,
+        updated_at: device.updatedAt,
+        protocol_version: process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0',
         policy_version: POLICY_VERSION,
+        algorithm_version: 'ecdsa-p256-sha256-spki-v1',
         request_id: req.requestId,
       });
     } catch (error) {
       if (error.code === 'P2002') {
         return res.status(409).json(
-          buildError(409, 'DEVICE_EXISTS', 'Device with this keyId or public key already exists', null, req)
+          buildError(
+            409,
+            'DEVICE_EXISTS',
+            'Device with this keyId or public key already exists',
+            null,
+            req
+          )
         );
       }
+
       next(error);
     }
   }
