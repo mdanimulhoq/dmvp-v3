@@ -11,14 +11,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,7 +42,6 @@ fun HomeScreen(
     modifier: Modifier = Modifier
 ) {
     val trustTier = DeviceTrustTier.TIER_A // placeholder
-    val noOp: () -> Unit = {}
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -124,29 +120,52 @@ fun HomeScreen(
                 )
             }
 
-            // Quick Actions Grid — সরাসরি LazyColumn-এর item হিসেবে
+            // Quick Actions Grid — Column + Row (no LazyVerticalGrid)
             item {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(280.dp) // fixed height দিলাম
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(actionItems) { action ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         ActionCard(
-                            icon = action.icon,
-                            title = action.title,
-                            description = action.description,
-                            color = action.color,
-                            onClick = when (action.id) {
-                                "register" -> onNavigateToCapture
-                                "verify" -> onNavigateToVerify
-                                "search" -> onNavigateToSearch
-                                "device" -> onNavigateToDevice
-                                else -> noOp
-                            }
+                            icon = Icons.Default.AddPhotoAlternate,
+                            title = "Register",
+                            description = "Capture or select media to register",
+                            color = CyanBright,
+                            onClick = onNavigateToCapture,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ActionCard(
+                            icon = Icons.Default.Verified,
+                            title = "Verify",
+                            description = "Verify media against registry",
+                            color = Success,
+                            onClick = onNavigateToVerify,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        ActionCard(
+                            icon = Icons.Default.Search,
+                            title = "Search",
+                            description = "Search for evidence by hash or similarity",
+                            color = Info,
+                            onClick = onNavigateToSearch,
+                            modifier = Modifier.weight(1f)
+                        )
+                        ActionCard(
+                            icon = Icons.Default.Devices,
+                            title = "Device",
+                            description = "Manage device keys and trust",
+                            color = Warning,
+                            onClick = onNavigateToDevice,
+                            modifier = Modifier.weight(1f)
                         )
                     }
                 }
@@ -222,11 +241,11 @@ private fun ActionCard(
     title: String,
     description: String,
     color: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
             .aspectRatio(1f)
             .clip(RoundedCornerShape(12.dp))
             .clickable(onClick = onClick),
@@ -287,45 +306,6 @@ private fun StatItem(label: String, value: String) {
         )
     }
 }
-
-private data class ActionItem(
-    val id: String,
-    val icon: ImageVector,
-    val title: String,
-    val description: String,
-    val color: Color
-)
-
-private val actionItems = listOf(
-    ActionItem(
-        id = "register",
-        icon = Icons.Default.AddPhotoAlternate,
-        title = "Register",
-        description = "Capture or select media to register",
-        color = CyanBright
-    ),
-    ActionItem(
-        id = "verify",
-        icon = Icons.Default.Verified,
-        title = "Verify",
-        description = "Verify media against registry",
-        color = Success
-    ),
-    ActionItem(
-        id = "search",
-        icon = Icons.Default.Search,
-        title = "Search",
-        description = "Search for evidence by hash or similarity",
-        color = Info
-    ),
-    ActionItem(
-        id = "device",
-        icon = Icons.Default.Devices,
-        title = "Device",
-        description = "Manage device keys and trust",
-        color = Warning
-    )
-)
 
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
