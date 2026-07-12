@@ -49,7 +49,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.dmvp.app.R
@@ -84,7 +84,7 @@ fun CaptureScreen(
     onNavigateToVerify: (File, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val viewModel: CaptureViewModel = viewModel()
+    val viewModel: CaptureViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
