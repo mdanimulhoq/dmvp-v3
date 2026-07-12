@@ -38,6 +38,7 @@
 
 const crypto = require('crypto');
 const { prisma } = require('../config/database');
+const { verifyEcdsaSha256Signature } = require('../utils/cryptoUtils');
 
 /** Header carrying the Base64-encoded request signature. */
 const SIGNATURE_HEADER = 'x-dmvp-signature';
@@ -50,6 +51,12 @@ const TIMESTAMP_HEADER = 'x-dmvp-timestamp';
 
 /** Header carrying the device key identifier that produced the signature. */
 const DEVICE_KEY_ID_HEADER = 'x-dmvp-device-key-id';
+
+/** Legacy header names for backward compatibility */
+const LEGACY_SIGNATURE_HEADER = 'x-request-signature';
+const LEGACY_NONCE_HEADER = 'x-nonce';
+const LEGACY_TIMESTAMP_HEADER = 'x-timestamp';
+const LEGACY_DEVICE_KEY_ID_HEADER = 'x-dmvp-key-id';
 
 /**
  * Maximum allowed clock skew between the client-claimed signing
@@ -167,6 +174,23 @@ function sendSignatureError(
   });
 }
 
+/**
+ * Read a header from the request, supporting multiple header names.
+ *
+ * @param {import('express').Request} req
+ * @param {string[]} names - Header names to try in order
+ * @returns {string|null} Header value or null if not found
+ */
+function readHeader(req, names) {
+  for (const name of names) {
+    const value = req.headers[name];
+    if (typeof value === 'string' && value.trim().length > 0) {
+      return value.trim();
+    }
+  }
+  return null;
+}
+
 /* ------------------------------------------------------------------ *
  * Canonical serialization
  * ------------------------------------------------------------------ */
@@ -229,17 +253,11 @@ function canonicalSerialize(payload) {
  * @returns {boolean} true if the signature is valid for the given payload
  */
 function verifyEcdsaSignature(canonicalBytes, signatureBase64, publicKeyPem) {
-  try {
-    const signatureBytes = Buffer.from(signatureBase64, 'base64');
-    const verifier = crypto.createVerify('SHA256');
-    verifier.update(canonicalBytes);
-    verifier.end();
-    return verifier.verify(publicKeyPem, signatureBytes);
-  } catch (err) {
-    // Malformed key material or signature bytes are treated as an
-    // invalid signature rather than a server error.
-    return false;
-  }
+  return verifyEcdsaSha256Signature(
+    canonicalBytes,
+    signatureBase64,
+    publicKeyPem
+  );
 }
 
 /**
@@ -279,8 +297,8 @@ function validateTimestamp(timestampHeaderValue) {
  * @returns {Promise<{ ok: true, device: object } | { ok: false, errorCode: string, message: string }>}
  */
 async function loadTrustedDevice(deviceKeyId) {
-  const device = await prisma.deviceKey.findUnique({
-    where: { deviceKeyId },
+  const device = await prisma.device.findUnique({
+    where: { keyId: deviceKeyId },
   });
 
   if (!device) {
@@ -291,7 +309,7 @@ async function loadTrustedDevice(deviceKeyId) {
     };
   }
 
-  if (device.trustTier === 'TIER_D' || device.status === 'REVOKED') {
+  if (device.trustTier === 'TIER_D' || device.revokedAt) {
     return {
       ok: false,
       errorCode: 'DEVICE_REVOKED',
@@ -324,10 +342,22 @@ async function loadTrustedDevice(deviceKeyId) {
  * @param {import('express').NextFunction} next
  */
 async function verifySignature(req, res, next) {
-  const signatureBase64 = req.headers[SIGNATURE_HEADER];
-  const nonce = req.headers[NONCE_HEADER];
-  const timestampHeaderValue = req.headers[TIMESTAMP_HEADER];
-  const deviceKeyId = req.headers[DEVICE_KEY_ID_HEADER];
+  const signatureBase64 = readHeader(req, [
+    SIGNATURE_HEADER,
+    LEGACY_SIGNATURE_HEADER,
+  ]);
+
+  const nonce = readHeader(req, [NONCE_HEADER, LEGACY_NONCE_HEADER]);
+
+  const timestampHeaderValue = readHeader(req, [
+    TIMESTAMP_HEADER,
+    LEGACY_TIMESTAMP_HEADER,
+  ]);
+
+  const deviceKeyId = readHeader(req, [
+    DEVICE_KEY_ID_HEADER,
+    LEGACY_DEVICE_KEY_ID_HEADER,
+  ]) || req.body?.signer_device_key_id || req.body?.signerDeviceKeyId;
 
   const missing = [];
   if (!signatureBase64) missing.push(SIGNATURE_HEADER);
@@ -347,9 +377,7 @@ async function verifySignature(req, res, next) {
     return;
   }
 
-  const timestampCheck = validateTimestamp(
-    /** @type {string} */ (timestampHeaderValue)
-  );
+  const timestampCheck = validateTimestamp(timestampHeaderValue);
   if (!timestampCheck.valid) {
     sendSignatureError(
       res,
@@ -362,10 +390,7 @@ async function verifySignature(req, res, next) {
     return;
   }
 
-  const nonceIsFresh = checkAndConsumeNonce(
-    /** @type {string} */ (deviceKeyId),
-    /** @type {string} */ (nonce)
-  );
+  const nonceIsFresh = checkAndConsumeNonce(deviceKeyId, nonce);
   if (!nonceIsFresh) {
     sendSignatureError(
       res,
@@ -379,9 +404,7 @@ async function verifySignature(req, res, next) {
 
   let deviceLookup;
   try {
-    deviceLookup = await loadTrustedDevice(
-      /** @type {string} */ (deviceKeyId)
-    );
+    deviceLookup = await loadTrustedDevice(deviceKeyId);
   } catch (err) {
     sendSignatureError(
       res,
@@ -410,7 +433,7 @@ async function verifySignature(req, res, next) {
   const canonicalBytes = canonicalSerialize(req.body);
   const signatureValid = verifyEcdsaSignature(
     canonicalBytes,
-    /** @type {string} */ (signatureBase64),
+    signatureBase64,
     device.publicKeyPem
   );
 
@@ -426,10 +449,11 @@ async function verifySignature(req, res, next) {
   }
 
   req.verifiedDevice = {
-    deviceKeyId: device.deviceKeyId,
+    deviceId: device.deviceId,
+    deviceKeyId: device.keyId,
     trustTier: device.trustTier,
     hardwareBacked: device.hardwareBacked,
-    lineageId: device.lineageId,
+    revokedAt: device.revokedAt,
   };
 
   next();
