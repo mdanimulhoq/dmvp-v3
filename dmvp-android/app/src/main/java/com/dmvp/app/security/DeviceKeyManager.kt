@@ -89,7 +89,7 @@ object DeviceKeyManager {
             val publicKey = getPublicKey() ?: return null
 
             Timber.tag(TAG).d(
-                "Device key generated: curve=$EC_CURVE hardwareBacked=${isHardwareBacked()} certCount=${certificateChain.size}"
+                "Device key generated: curve=$EC_CURVE hardwareBacked=${isHardwareBacked()} trustTier=${getTrustTierName()} certCount=${certificateChain.size}"
             )
 
             Pair(publicKey, certificateChain)
@@ -100,31 +100,11 @@ object DeviceKeyManager {
     }
 
     fun isHardwareBacked(): Boolean {
-        return try {
-            val privateKey = getPrivateKey() ?: return false
-            val keyFactory = KeyFactory.getInstance(
-                privateKey.algorithm,
-                ANDROID_KEYSTORE
-            )
-
-            val keyInfo = keyFactory.getKeySpec(
-                privateKey,
-                KeyInfo::class.java
-            ) as KeyInfo
-
-            keyInfo.isInsideSecureHardware
-        } catch (e: Exception) {
-            Timber.tag(TAG).e(e, "Failed to check hardware-backed status")
-            false
-        }
+        return getHardwareBackedStatus() == true
     }
 
     fun getTrustTierName(): String {
-        return if (isHardwareBacked()) {
-            "TIER_B"
-        } else {
-            "TIER_C"
-        }
+        return resolveTrustTierForHardwareStatus(getHardwareBackedStatus())
     }
 
     fun signString(data: String): String? {
@@ -154,12 +134,14 @@ object DeviceKeyManager {
                 return emptyMap()
             }
 
-            val hardwareBacked = isHardwareBacked()
+            val hardwareBackedStatus = getHardwareBackedStatus()
+            val hardwareBacked = hardwareBackedStatus == true
+            val trustTier = resolveTrustTierForHardwareStatus(hardwareBackedStatus)
 
             mapOf(
-                "valid" to true,
+                "valid" to (hardwareBackedStatus != null),
                 "hardware_backed" to hardwareBacked,
-                "trust_tier" to getTrustTierName(),
+                "trust_tier" to trustTier,
                 "platform" to "android",
                 "key_algorithm" to KeyProperties.KEY_ALGORITHM_EC,
                 "curve" to EC_CURVE,
@@ -182,6 +164,39 @@ object DeviceKeyManager {
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to delete device key")
             false
+        }
+    }
+
+    private fun getHardwareBackedStatus(): Boolean? {
+        return try {
+            val privateKey = getPrivateKey()
+            if (privateKey == null) {
+                Timber.tag(TAG).w("Device key is not available for hardware-backed check")
+                return null
+            }
+
+            val keyFactory = KeyFactory.getInstance(
+                privateKey.algorithm,
+                ANDROID_KEYSTORE
+            )
+
+            val keyInfo = keyFactory.getKeySpec(
+                privateKey,
+                KeyInfo::class.java
+            ) as KeyInfo
+
+            keyInfo.isInsideSecureHardware
+        } catch (e: Exception) {
+            Timber.tag(TAG).e(e, "Failed to check hardware-backed status")
+            null
+        }
+    }
+
+    internal fun resolveTrustTierForHardwareStatus(hardwareBackedStatus: Boolean?): String {
+        return when (hardwareBackedStatus) {
+            true -> "TIER_A"
+            false -> "TIER_C"
+            null -> "TIER_D"
         }
     }
 
