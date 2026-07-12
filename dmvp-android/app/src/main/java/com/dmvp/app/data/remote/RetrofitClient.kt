@@ -29,7 +29,7 @@ class ApiException(
  */
 object RetrofitClient {
 
-    private const val BASE_URL = "https://dmvp-v3.onrender.com/"
+    private const val BASE_URL = "https://dmvp-v3.onrender.com/api/v1/"
 
     private var retrofit: Retrofit? = null
     private var apiService: ApiService? = null
@@ -42,6 +42,7 @@ object RetrofitClient {
     fun init() {
         if (retrofit == null) {
             Timber.d("Initializing Retrofit client")
+
             val okHttpClient = OkHttpClient.Builder()
                 .connectTimeout(30, TimeUnit.SECONDS)
                 .readTimeout(60, TimeUnit.SECONDS)
@@ -67,11 +68,12 @@ object RetrofitClient {
         if (apiService == null) {
             init()
         }
+
         return apiService!!
     }
 
     /**
-     * Store the current device key ID (used for request context/signing).
+     * Store the current device key ID.
      */
     fun setDeviceKeyId(deviceKeyId: String) {
         this.deviceKeyId = deviceKeyId
