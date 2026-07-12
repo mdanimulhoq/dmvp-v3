@@ -67,6 +67,7 @@ import com.dmvp.app.ui.viewmodel.CaptureViewModel
 import com.dmvp.app.utils.DmvpConstants
 import com.dmvp.app.utils.toFile
 import java.io.File
+import timber.log.Timber
 
 /**
  * CaptureScreen composable.
@@ -101,7 +102,7 @@ fun CaptureScreen(
                     viewModel.setGalleryFile(file, mediaType)
                 }
             } catch (e: Exception) {
-                // Handle error
+                Timber.e(e, "Failed to process file picker result")
             }
         }
     }
@@ -217,7 +218,7 @@ fun CaptureScreen(
                                         }
                                     }
                                     is MediaPickerResult.Error -> {
-                                        // Show error
+                                        Timber.e("Media picker error: ${result.message}")
                                     }
                                     is MediaPickerResult.Cancelled -> {
                                         // User cancelled
