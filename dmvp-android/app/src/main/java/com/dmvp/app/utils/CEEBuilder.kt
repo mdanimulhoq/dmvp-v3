@@ -39,6 +39,7 @@ import com.dmvp.app.security.SignatureUtils
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import timber.log.Timber
 
 private const val TAG = "CEEBuilder"
 private const val PROTOCOL_VERSION = "dmvp-v3.0.0"
@@ -83,7 +84,7 @@ object CEEBuilder {
         return try {
             // Validate file exists and is readable
             if (!imageFile.exists() || !imageFile.canRead()) {
-                Log.e(TAG, "Image file does not exist or cannot be read: ${imageFile.absolutePath}")
+                Timber.e("Image file does not exist or cannot be read: ${imageFile.absolutePath}")
                 return null
             }
 
@@ -100,7 +101,7 @@ object CEEBuilder {
             // Generate robust fingerprint
             val fingerprint = FingerprintUtils.generateImageFingerprint(imageFile.absolutePath)
             if (fingerprint == null) {
-                Log.e(TAG, "Failed to generate fingerprint for image")
+                Timber.e("Failed to generate fingerprint for image")
                 return null
             }
 
@@ -130,7 +131,7 @@ object CEEBuilder {
                 chainParentEvidenceId = chainParentEvidenceId
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to build CEE from image file", e)
+            Timber.e(e, "Failed to build CEE from image file")
             null
         }
     }
@@ -163,7 +164,7 @@ object CEEBuilder {
         return try {
             // Validate file exists and is readable
             if (!videoFile.exists() || !videoFile.canRead()) {
-                Log.e(TAG, "Video file does not exist or cannot be read: ${videoFile.absolutePath}")
+                Timber.e("Video file does not exist or cannot be read: ${videoFile.absolutePath}")
                 return null
             }
 
@@ -179,7 +180,7 @@ object CEEBuilder {
                 maxKeyframes = maxKeyframes
             )
             if (fingerprint == null) {
-                Log.e(TAG, "Failed to generate fingerprint for video")
+                Timber.e("Failed to generate fingerprint for video")
                 return null
             }
 
@@ -209,7 +210,7 @@ object CEEBuilder {
                 chainParentEvidenceId = chainParentEvidenceId
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to build CEE from video file", e)
+            Timber.e(e, "Failed to build CEE from video file")
             null
         }
     }
@@ -248,7 +249,7 @@ object CEEBuilder {
                 "image"
             )
             if (fingerprint == null) {
-                Log.e(TAG, "Failed to generate fingerprint from image bytes")
+                Timber.e("Failed to generate fingerprint from image bytes")
                 return null
             }
 
@@ -277,7 +278,7 @@ object CEEBuilder {
                 chainParentEvidenceId = chainParentEvidenceId
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to build CEE from image bytes", e)
+            Timber.e(e, "Failed to build CEE from image bytes")
             null
         }
     }
@@ -341,7 +342,7 @@ object CEEBuilder {
             // Sign the canonical representation
             val signature = SignatureUtils.signPayload(ceeUnsigned)
             if (signature == null) {
-                Log.e(TAG, "Failed to sign CEE")
+                Timber.e("Failed to sign CEE")
                 return null
             }
 
@@ -349,7 +350,7 @@ object CEEBuilder {
             return ceeUnsigned.copy(signature = signature)
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to build CEE", e)
+            Timber.e(e, "Failed to build CEE")
             return null
         }
     }
@@ -394,7 +395,7 @@ object CEEBuilder {
                 chainParentEvidenceId = chainParentEvidenceId
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to build CEE from hash", e)
+            Timber.e(e, "Failed to build CEE from hash")
             null
         }
     }
@@ -444,7 +445,7 @@ object CEEBuilder {
                 chainParentEvidenceId = parentEvidenceId
             )
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to build derivative evidence", e)
+            Timber.e(e, "Failed to build derivative evidence")
             null
         }
     }
