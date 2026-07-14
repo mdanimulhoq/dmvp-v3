@@ -321,6 +321,7 @@ class DMVPRepository(private val context: Context) {
                 )
 
                 // ── Step 3.4: Build verdict for EXACT_MATCH ────────────────
+                // ── Step 3.5: Added signer_device_key_id and registered_at to metadata ──
                 val verdict = MultiAxisVerdict(
                     integrityVerdict = IntegrityVerdict.EXACT_MATCH,
                     provenanceVerdict = null,
@@ -345,7 +346,9 @@ class DMVPRepository(private val context: Context) {
                     metadata = mapOf(
                         "status" to "VERIFIED",
                         "media_type" to mediaType,
-                        "verification_mode" to mode
+                        "verification_mode" to mode,
+                        "signer_device_key_id" to evidence.signerDeviceKeyId,
+                        "registered_at" to evidence.createdAt
                     )
                 )
 
