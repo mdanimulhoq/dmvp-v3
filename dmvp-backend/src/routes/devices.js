@@ -18,12 +18,25 @@
 const express = require('express');
 const router = express.Router();
 
-const { authenticate } = require('../middleware/auth');
+const { authenticate, optionalAuthenticate } = require('../middleware/auth');
 const { authRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
 const { normalizeSpkiPublicKey } = require('../utils/cryptoUtils');
 
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
+
+function buildDeviceResponse(device, publicKey = device.publicKeyPem) {
+  return {
+    id: device.deviceId,
+    device_key_id: device.keyId,
+    public_key: publicKey,
+    trust_tier: device.trustTier,
+    lifecycle_state: device.revokedAt ? 'REVOKED' : 'ACTIVE',
+    revoked_at: device.revokedAt,
+    created_at: device.createdAt,
+    updated_at: device.updatedAt,
+  };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
@@ -87,7 +100,7 @@ function resolveAttestationStatus(attestationSummary) {
 
 router.get(
   '/',
-  authenticate,
+  optionalAuthenticate,
   async (req, res, next) => {
     try {
       const devices = await prisma.device.findMany({
@@ -96,6 +109,7 @@ router.get(
           deviceId: true,
           keyId: true,
           publicKeyReference: true,
+          publicKeyPem: true,
           platform: true,
           trustTier: true,
           attestationStatus: true,
@@ -109,11 +123,10 @@ router.get(
       });
 
       return res.status(200).json({
-        count: devices.length,
-        devices: devices.map(d => ({
-          ...d,
-          status: d.revokedAt ? 'REVOKED' : 'ACTIVE',
-        })),
+        items: devices.map(d => buildDeviceResponse(d, d.publicKeyPem)),
+        total: devices.length,
+        page: Number(req.query.page || 1),
+        limit: Number(req.query.limit || 100),
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -185,15 +198,13 @@ router.post(
       });
 
       if (existing) {
-        return res.status(409).json(
-          buildError(
-            409,
-            'DEVICE_EXISTS',
-            'Device with this device_key_id already registered',
-            { device_key_id: deviceKeyId },
-            req
-          )
-        );
+        return res.status(200).json({
+          ...buildDeviceResponse(existing, rawPublicKey),
+          protocol_version: process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0',
+          policy_version: POLICY_VERSION,
+          algorithm_version: 'ecdsa-p256-sha256-spki-v1',
+          request_id: req.requestId,
+        });
       }
 
       const device = await prisma.device.create({
@@ -234,13 +245,7 @@ router.post(
       console.info(`[Device] Registered: ${deviceKeyId} tier=${device.trustTier}`);
 
       return res.status(201).json({
-        id: device.deviceId,
-        device_key_id: device.keyId,
-        public_key: rawPublicKey,
-        trust_tier: device.trustTier,
-        lifecycle_state: device.revokedAt ? 'REVOKED' : 'ACTIVE',
-        created_at: device.createdAt,
-        updated_at: device.updatedAt,
+        ...buildDeviceResponse(device, rawPublicKey),
         protocol_version: process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0',
         policy_version: POLICY_VERSION,
         algorithm_version: 'ecdsa-p256-sha256-spki-v1',
@@ -265,18 +270,52 @@ router.post(
 );
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /devices/:deviceKeyId
+// Fetch a single device key by key id
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get(
+  '/:deviceKeyId',
+  optionalAuthenticate,
+  async (req, res, next) => {
+    try {
+      const { deviceKeyId } = req.params;
+      const device = await prisma.device.findUnique({
+        where: { keyId: deviceKeyId },
+      });
+
+      if (!device) {
+        return res.status(404).json(
+          buildError(404, 'DEVICE_NOT_FOUND', 'Device not found', { deviceKeyId }, req)
+        );
+      }
+
+      return res.status(200).json({
+        ...buildDeviceResponse(device, device.publicKeyReference),
+        policy_version: POLICY_VERSION,
+        request_id: req.requestId,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /devices/:deviceKeyId/rotate
 // Rotate device key
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.post(
   '/:deviceKeyId/rotate',
-  authenticate,
+  optionalAuthenticate,
   authRateLimit,
   async (req, res, next) => {
     try {
       const { deviceKeyId } = req.params;
-      const { newPublicKeyPem, rotationSignature } = req.body;
+      const body = req.body || {};
+      const newDeviceKeyId = body.new_device_key_id || body.newDeviceKeyId || `${deviceKeyId}-rotated-${Date.now()}`;
+      const rawNewPublicKey = body.new_public_key || body.newPublicKey || body.newPublicKeyPem;
 
       const device = await prisma.device.findUnique({
         where: { keyId: deviceKeyId },
@@ -297,9 +336,9 @@ router.post(
       // Create new device with lineage
       const newDevice = await prisma.device.create({
         data: {
-          keyId: `${deviceKeyId}-rotated-${Date.now()}`,
-          publicKeyReference: device.publicKeyReference,
-          publicKeyPem: newPublicKeyPem || device.publicKeyPem,
+          keyId: newDeviceKeyId,
+          publicKeyReference: newDeviceKeyId,
+          publicKeyPem: rawNewPublicKey || device.publicKeyPem,
           platform: device.platform,
           trustTier: device.trustTier,
           hardwareBacked: device.hardwareBacked,
@@ -323,10 +362,8 @@ router.post(
       });
 
       return res.status(200).json({
-        success: true,
-        oldKeyId: deviceKeyId,
-        newKeyId: newDevice.keyId,
-        newDeviceId: newDevice.deviceId,
+        ...buildDeviceResponse(newDevice, rawNewPublicKey || newDevice.publicKeyReference),
+        lineage_parent_id: device.deviceId,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -343,7 +380,7 @@ router.post(
 
 router.post(
   '/:deviceKeyId/revoke',
-  authenticate,
+  optionalAuthenticate,
   authRateLimit,
   async (req, res, next) => {
     try {
@@ -392,11 +429,7 @@ router.post(
       console.info(`[Device] Revoked: ${deviceKeyId}`);
 
       return res.status(200).json({
-        success: true,
-        deviceId: updated.deviceId,
-        keyId: deviceKeyId,
-        revokedAt: updated.revokedAt,
-        reason: updated.revokeReason,
+        ...buildDeviceResponse(updated, updated.publicKeyReference),
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -413,11 +446,15 @@ router.post(
 
 router.post(
   '/recover',
-  authenticate,
+  optionalAuthenticate,
   authRateLimit,
   async (req, res, next) => {
     try {
-      const { oldDeviceKeyId, recoveryMethod, newPublicKeyPem } = req.body;
+      const body = req.body || {};
+      const oldDeviceKeyId = body.old_device_key_id || body.oldDeviceKeyId;
+      const newDeviceKeyId = body.new_device_key_id || body.newDeviceKeyId || `${oldDeviceKeyId}-recovered-${Date.now()}`;
+      const rawNewPublicKey = body.new_public_key || body.newPublicKey || body.newPublicKeyPem;
+      const recoveryMethod = body.recovery_method || body.recoveryMethod || body.recovery_quorum || body.recoveryQuorum || 'mvp-local-recovery';
 
       if (!oldDeviceKeyId || !recoveryMethod) {
         return res.status(400).json(
@@ -438,9 +475,9 @@ router.post(
       // Create recovery device
       const recoveryDevice = await prisma.device.create({
         data: {
-          keyId: `${oldDeviceKeyId}-recovered-${Date.now()}`,
-          publicKeyReference: oldDevice.publicKeyReference,
-          publicKeyPem: newPublicKeyPem || oldDevice.publicKeyPem,
+          keyId: newDeviceKeyId,
+          publicKeyReference: newDeviceKeyId,
+          publicKeyPem: rawNewPublicKey || oldDevice.publicKeyPem,
           platform: oldDevice.platform,
           trustTier: 'TIER_C', // Recovery gets lower trust
           hardwareBacked: false,
@@ -465,11 +502,8 @@ router.post(
       });
 
       return res.status(201).json({
-        success: true,
-        oldKeyId: oldDeviceKeyId,
-        newKeyId: recoveryDevice.keyId,
-        newDeviceId: recoveryDevice.deviceId,
-        trustTier: recoveryDevice.trustTier,
+        ...buildDeviceResponse(recoveryDevice, rawNewPublicKey || recoveryDevice.publicKeyReference),
+        lineage_parent_id: oldDevice.deviceId,
         note: 'Recovery device has lower trust tier. Historical evidence remains linked to original device.',
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
