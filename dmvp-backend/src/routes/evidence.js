@@ -16,6 +16,7 @@
 const express = require('express');
 const router = express.Router();
 
+const { authenticate } = require('../middleware/auth');
 const { registerRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
 const { computeSHA256Sync } = require('../utils/hashUtils');
@@ -100,6 +101,28 @@ function buildEvidenceResponse(evidence, idempotencyKey, warnings = []) {
     idempotencyKey,
     protocol_version: PROTOCOL_VERSION,
     policy_version: POLICY_VERSION,
+  };
+}
+
+// ── Step 3.4: Build evidence record response for /by-hash ──────────────────
+
+function buildEvidenceRecordResponse(evidence) {
+  return {
+    evidence_id: evidence.evidenceId,
+    media_type: evidence.mediaType,
+    sha256_original: evidence.sha256Original,
+    canonical_media_hash: evidence.canonicalMediaHash,
+    fingerprint_profile: evidence.robustFingerprintProfile,
+    fingerprint_algorithm_versions: evidence.fingerprintAlgorithmVersions,
+    signer_device_key_id: evidence.signerDeviceKeyId,
+    timestamp_references: {
+      registration_server_time: evidence.registrationServerTime?.toISOString?.() || null,
+      trusted_timestamp_token_reference: evidence.trustedTimestampTokenReference || null,
+    },
+    privacy_flags: evidence.privacyFlags,
+    lifecycle_state: evidence.status,
+    created_at: evidence.createdAt?.toISOString?.() || null,
+    updated_at: evidence.updatedAt?.toISOString?.() || null,
   };
 }
 
@@ -415,12 +438,13 @@ router.get(
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /evidence/by-hash/:sha256
-// Exact hash lookup
+// Exact hash lookup — Step 3.4: Made public (no authenticate)
 // ─────────────────────────────────────────────────────────────────────────────
 
 router.get(
   '/by-hash/:sha256',
-  authenticate,
+  // ── Step 3.4: Remove authenticate for public access ─────────────────────
+  // authenticate,  // <-- REMOVED: public endpoint for Android verify flow
   async (req, res, next) => {
     try {
       const { sha256 } = req.params;
@@ -444,11 +468,8 @@ router.get(
         );
       }
 
-      return res.status(200).json({
-        ...evidence,
-        policy_version: POLICY_VERSION,
-        request_id: req.requestId,
-      });
+      // ── Step 3.4: Return snake_case response for Android ────────────────
+      return res.status(200).json(buildEvidenceRecordResponse(evidence));
     } catch (error) {
       next(error);
     }
