@@ -110,10 +110,10 @@ interface ApiService {
 
     /**
      * Register a new device key.
+     * ── Step 3.3 Fix: Removed Authorization header ──
      */
     @POST(ApiConstants.ENDPOINT_DEVICES_REGISTER)
     suspend fun registerDevice(
-        @Header(ApiConstants.HEADER_AUTHORIZATION) auth: String,
         @Body request: DeviceRegistrationRequest
     ): DeviceKey
 
@@ -156,10 +156,10 @@ interface ApiService {
 
     /**
      * List device keys with optional filters.
+     * ── Step 3.3 Fix: Removed Authorization header ──
      */
     @GET(ApiConstants.ENDPOINT_DEVICES_INFO)
     suspend fun listDeviceKeys(
-        @Header(ApiConstants.HEADER_AUTHORIZATION) auth: String,
         @Query(ApiConstants.PARAM_TRUST_TIER) trustTier: String? = null,
         @Query(ApiConstants.PARAM_LIFECYCLE_STATE) lifecycleState: String? = null,
         @Query(ApiConstants.PARAM_PAGE) page: Int = 1,
