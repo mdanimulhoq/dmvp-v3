@@ -186,7 +186,7 @@ fun VerifyScreen(
                         }
                     }
 
-                    // Media picker (if no file selected yet)
+                    // ── Step 3.4: MediaPicker with camera support ──────────
                     if (uiState.selectedFile == null) {
                         MediaPicker(
                             mediaType = MediaPickerType.IMAGE_AND_VIDEO,
@@ -206,7 +206,7 @@ fun VerifyScreen(
                                     }
                                 }
                             },
-                            showCamera = false,
+                            showCamera = true,      // ── Step 3.4: Camera enabled ──
                             showGallery = true,
                             showFilePicker = true
                         )
@@ -252,6 +252,7 @@ fun VerifyScreen(
         )
     }
 }
+
 /**
  * Media preview for Verify screen with verify button.
  */
@@ -418,6 +419,7 @@ private fun MediaPreviewForVerify(
         }
     }
 }
+
 /**
  * Extension to get readable file size.
  */
