@@ -63,8 +63,10 @@ const LEGACY_DEVICE_KEY_ID_HEADER = 'x-dmvp-key-id';
  * timestamp and server time, in either direction. Requests outside this
  * window are rejected as stale or as potential replay/clock-forgery
  * attempts, per SRS NFR-SC-02.
+ *
+ * ── Step 3.6: Changed from 5 minutes to 10 minutes ──
  */
-const REPLAY_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+const REPLAY_WINDOW_MS = 10 * 60 * 1000; // 10 minutes — Step 3.6 (NFR-SC-02)
 
 /**
  * In-memory nonce cache used for replay protection.
@@ -467,10 +469,12 @@ async function verifySignature(req, res, next) {
   next();
 }
 
+// ── Step 3.6: Added validateTimestamp to exports ──
 module.exports = {
   verifySignature,
   canonicalSerialize,
   verifyEcdsaSignature,
   checkAndConsumeNonce,
+  validateTimestamp,
   REPLAY_WINDOW_MS,
 };
