@@ -250,8 +250,9 @@ class DMVPRepository(private val context: Context) {
                     )
                 }
 
-                // Idempotency key (optional, use SHA-256 of file as idempotency key)
-                val idempotencyKey = HashUtils.sha256(file)
+                // ── Step 3.2: Idempotency key must be a UUID ──────────────
+                // Idempotency key must be a UUID per FR-CR-08.
+                val idempotencyKey = UUID.randomUUID().toString()
 
                 // Send registration
                 val response = apiService.registerEvidence(
