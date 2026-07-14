@@ -39,9 +39,10 @@ object ApiConstants {
     // Headers
     const val HEADER_AUTHORIZATION = "Authorization"
     const val HEADER_IDEMPOTENCY_KEY = "Idempotency-Key"
-    const val HEADER_REQUEST_SIGNATURE = "X-Request-Signature"
-    const val HEADER_NONCE = "X-Nonce"
-    const val HEADER_TIMESTAMP = "X-Timestamp"
+    const val HEADER_REQUEST_SIGNATURE = "X-DMVP-Signature"
+    const val HEADER_NONCE = "X-DMVP-Nonce"
+    const val HEADER_TIMESTAMP = "X-DMVP-Timestamp"
+    const val HEADER_DEVICE_KEY_ID = "X-DMVP-Device-Key-Id"
     const val HEADER_POLICY_VERSION = "X-Policy-Version"
     const val HEADER_REQUEST_ID = "X-Request-Id"
 
