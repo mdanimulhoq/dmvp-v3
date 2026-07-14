@@ -249,7 +249,8 @@ fun CaptureScreen(
                             onPrivacyFlagsChanged = { viewModel.setPrivacyFlags(it) }
                         )
 
-                        // Action buttons
+                        // ── Step 3.3: Action buttons ──────────────────────────
+                        // Register button now calls viewModel.registerEvidence() directly
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -258,10 +259,8 @@ fun CaptureScreen(
                         ) {
                             Button(
                                 onClick = {
-                                    uiState.selectedFile?.let { file ->
-                                        val mediaType = uiState.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE
-                                        onNavigateToRegister(file, mediaType)
-                                    }
+                                    // ── Step 3.3: Direct registration from Capture ──
+                                    viewModel.registerEvidence()
                                 },
                                 modifier = Modifier.weight(1f),
                                 enabled = uiState.validationMode == com.dmvp.app.ui.viewmodel.ValidationMode.READY_FOR_REGISTRATION ||
