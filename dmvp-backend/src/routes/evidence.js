@@ -21,6 +21,15 @@ const { registerRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
 const { computeSHA256Sync } = require('../utils/hashUtils');
 
+// ── Step 3.2: Import idempotency utilities ─────────────────────────────────
+const {
+  getIdempotencyKey,
+  isValidIdempotencyKey,
+  computeRequestHash,
+  claimIdempotencyKey,
+  completeIdempotencyKey,
+} = require('../utils/idempotency');
+
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
 const PROTOCOL_VERSION = process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0';
 
@@ -60,6 +69,7 @@ router.post(
   registerRateLimit,
   async (req, res, next) => {
     try {
+      // ── Step 3.2: Remove idempotencyKey from body destructuring ────────
       const {
         evidenceId,
         mediaType,
@@ -90,7 +100,7 @@ router.post(
         codec,
         frameRate,
         transformHints,
-        idempotencyKey,
+        // idempotencyKey, // <-- REMOVED: now taken from headers
       } = req.body;
 
       // ── Validation ────────────────────────────────────────────────────────
@@ -124,26 +134,72 @@ router.post(
         );
       }
 
-      // ── Idempotency check ─────────────────────────────────────────────────
-      if (idempotencyKey) {
-        const existing = await prisma.evidence.findFirst({
-          where: { idempotencyKey },
-          select: { evidenceId: true, createdAt: true },
-        });
-        if (existing) {
-          return res.status(200).json({
-            success: true,
-            evidenceId: existing.evidenceId,
-            idempotencyKey,
-            createdAt: existing.createdAt,
-            message: 'Evidence already registered (idempotent response)',
-            policy_version: POLICY_VERSION,
-            request_id: req.requestId,
-          });
-        }
+      // ── Step 3.2: DELETE old idempotency block ──────────────────────────
+      // (The old block has been removed from here)
+
+      // ── Step 3.2: Add NEW idempotency logic after signature validation ──
+
+      // Get idempotency key from header
+      const idempotencyKey = getIdempotencyKey(req);
+
+      if (!isValidIdempotencyKey(idempotencyKey)) {
+        return res.status(400).json(
+          buildError(
+            400,
+            'INVALID_IDEMPOTENCY_KEY',
+            'Idempotency-Key header is required and must be a UUID.',
+            null,
+            req
+          )
+        );
       }
 
-      // ── Check duplicate by device + hash ──────────────────────────────────
+      const requestHash = computeRequestHash(req.body);
+      const idempotencyScope = 'POST /api/v1/evidence';
+
+      const idempotencyClaim = await claimIdempotencyKey({
+        prisma,
+        key: idempotencyKey,
+        scope: idempotencyScope,
+        requestHash,
+        requestId: req.requestId,
+      });
+
+      if (idempotencyClaim.action === 'replay') {
+        return res
+          .status(idempotencyClaim.existing.responseCode || 200)
+          .json({
+            ...idempotencyClaim.existing.responseBody,
+            idempotent_replay: true,
+            request_id: req.requestId,
+          });
+      }
+
+      if (idempotencyClaim.action === 'conflict') {
+        return res.status(409).json(
+          buildError(
+            409,
+            'IDEMPOTENCY_KEY_CONFLICT',
+            'This Idempotency-Key was already used with a different request body.',
+            { idempotency_key: idempotencyKey },
+            req
+          )
+        );
+      }
+
+      if (idempotencyClaim.action === 'in_progress') {
+        return res.status(409).json(
+          buildError(
+            409,
+            'IDEMPOTENCY_REQUEST_IN_PROGRESS',
+            'This Idempotency-Key is already processing. Retry the same request later.',
+            { idempotency_key: idempotencyKey },
+            req
+          )
+        );
+      }
+
+      // ── Continue: Check duplicate by device + hash ──────────────────────
       const duplicate = await prisma.evidence.findFirst({
         where: {
           signerDeviceKeyId,
@@ -213,7 +269,8 @@ router.post(
           transformHints: transformHints || null,
           status: 'ACTIVE',
           requestId: req.requestId,
-          idempotencyKey: idempotencyKey || null,
+          // ── Step 3.2: Update idempotencyKey field ────────────────────────
+          idempotencyKey, // <-- Now directly uses the header value
         },
       });
 
@@ -237,16 +294,29 @@ router.post(
 
       console.info(`[Evidence] Registered: ${evidenceId} device=${signerDeviceKeyId}`);
 
-      return res.status(201).json({
+      // ── Step 3.2: Replace final success response ─────────────────────────
+
+      const responseBody = {
         success: true,
         evidenceId: evidence.evidenceId,
         mediaType: evidence.mediaType,
         sha256Original: evidence.sha256Original,
         status: evidence.status,
-        createdAt: evidence.createdAt,
+        createdAt: evidence.createdAt.toISOString(),
+        idempotencyKey,
+        protocol_version: PROTOCOL_VERSION,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
+      };
+
+      await completeIdempotencyKey({
+        prisma,
+        key: idempotencyKey,
+        responseCode: 201,
+        responseBody,
       });
+
+      return res.status(201).json(responseBody);
     } catch (error) {
       if (error.code === 'P2002') {
         return res.status(409).json(
