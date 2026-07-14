@@ -1,904 +1,449 @@
 /**
- * app/src/main/java/com/dmvp/app/data/repository/DMVPRepository.kt
+ * app/src/main/java/com/dmvp/app/ui/screens/VerifyScreen.kt
  *
- * Main repository for DMVP v3.0 Android app.
- * Abstracts all data operations: device key management, evidence registration,
- * verification, search, ownership claims, and premium features.
- *
- * Uses:
- *   - Retrofit ApiService for network calls.
- *   - DeviceKeyManager for key operations.
- *   - CEEBuilder for constructing Canonical Evidence Envelopes.
- *   - DataStore/Preferences for caching device state and other data.
- *   - Result<T> wrapper for all operations to handle success/error states.
- *
- * All functions are suspendable (coroutines).
+ * VerifyScreen for DMVP v3.0 Android app.
+ * Allows users to select media, verify against the registry, and view the multi-axis verdict.
  */
 
-package com.dmvp.app.data.repository
+package com.dmvp.app.ui.screens
 
-import android.content.Context
-import android.util.Log
-import com.dmvp.app.data.local.LocalEvidenceStore
-import com.dmvp.app.data.model.*
-import com.dmvp.app.data.remote.*
-import com.dmvp.app.security.DeviceKeyManager
-import com.dmvp.app.security.FingerprintUtils
-import com.dmvp.app.security.HashUtils
-import com.dmvp.app.security.SignatureUtils
-import com.dmvp.app.utils.CEEBuilder
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.dmvp.app.ui.components.LoadingOverlay
+import com.dmvp.app.ui.components.LoadingState
+import com.dmvp.app.ui.components.MediaPicker
+import com.dmvp.app.ui.components.MediaPickerResult
+import com.dmvp.app.ui.components.MediaPickerType
+import com.dmvp.app.ui.components.VerdictCard
+import com.dmvp.app.ui.components.VerdictCardMode
+import com.dmvp.app.ui.theme.DMVPTheme
+import com.dmvp.app.ui.theme.Error
+import com.dmvp.app.ui.theme.Success
+import com.dmvp.app.ui.viewmodel.VerifyViewModel
 import com.dmvp.app.utils.DmvpConstants
-import com.dmvp.app.utils.PrefsKeys
-import com.dmvp.app.utils.currentIso8601
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import java.io.File
-import java.util.UUID
+import com.dmvp.app.utils.VerificationConstants
 import timber.log.Timber
-import retrofit2.HttpException
-
-private const val TAG = "DMVPRepository"
 
 /**
- * Repository result wrapper.
- * Sealed class to represent success or failure.
+ * VerifyScreen composable.
  */
-sealed class Result<out T> {
-    data class Success<T>(val data: T) : Result<T>()
-    data class Error(
-        val exception: Throwable? = null,
-        val errorCode: String? = null,
-        val message: String? = null
-    ) : Result<Nothing>()
-}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VerifyScreen(
+    onNavigateBack: () -> Unit,
+    onNavigateToVerdictDetail: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val viewModel: VerifyViewModel = hiltViewModel()
+    val uiState by viewModel.uiState.collectAsState()
 
-/**
- * Main repository class.
- */
-class DMVPRepository(private val context: Context) {
-
-    // API service instance
-    private val apiService: ApiService by lazy {
-        RetrofitClient.getInstance(context)
-    }
-
-    // ============================
-    // Device Key Management
-    // ============================
-
-    /**
-     * Get or create the device key.
-     * If the key exists in Keystore, return it.
-     * Otherwise, generate a new key and register it with the server.
-     * Returns the device key ID and public key.
-     */
-    suspend fun getOrCreateDeviceKey(): Result<Pair<String, String>> {
-        return withContext(Dispatchers.IO) {
-            try {
-                // Check if key exists in Keystore
-                if (DeviceKeyManager.hasDeviceKey()) {
-                    // Key exists, get public key
-                    val publicKey = DeviceKeyManager.getPublicKey()
-                    if (publicKey != null) {
-                        val deviceKeyId = getDeviceKeyId() ?: generateDeviceKeyId()
-                        return@withContext Result.Success(Pair(deviceKeyId, publicKey))
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = MaterialTheme.colorScheme.background,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = "Verify Media",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                },
+                navigationIcon = {
+                    IconButton(
+                        onClick = {
+                            if (!uiState.isLoading) {
+                                onNavigateBack()
+                            }
+                        }
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Back",
+                            tint = MaterialTheme.colorScheme.onBackground
+                        )
                     }
-                }
-
-                // No key, generate new one
-                Timber.d("Generating new device key")
-                val attestationChallenge = UUID.randomUUID().toString().toByteArray()
-                val result = DeviceKeyManager.generateDeviceKey(context, attestationChallenge)
-                if (result == null) {
-                    return@withContext Result.Error(errorCode = "KEY_GENERATION_FAILED", message = "Failed to generate device key")
-                }
-
-                val (publicKeyBase64, certChain) = result
-                val deviceKeyId = generateDeviceKeyId()
-
-                // Register the device with the server
-                val attestationSummary = buildAttestationSummary(certChain)
-                val registrationRequest = DeviceRegistrationRequest(
-                    deviceKeyId = deviceKeyId,
-                    publicKey = publicKeyBase64,
-                    attestationSummary = attestationSummary,
-                    platform = "android"
+                },
+                actions = {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val modes: List<String> = listOf(
+                            VerificationConstants.MODE_FAST,
+                            VerificationConstants.MODE_STANDARD,
+                            VerificationConstants.MODE_DEEP
+                        )
+                        modes.forEach { mode ->
+                            FilterChip(
+                                selected = uiState.verificationMode == mode,
+                                onClick = {
+                                    viewModel.setVerificationMode(mode)
+                                },
+                                label = {
+                                    Text(
+                                        text = mode.replaceFirstChar { it.uppercase() },
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.padding(horizontal = 2.dp)
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
                 )
-
-                // Store device key info locally
-                saveDeviceKeyId(deviceKeyId)
-                savePublicKey(publicKeyBase64)
-
-                // Register with server
-                val response = apiService.registerDevice(
-                    auth = "", // TODO: handle auth if needed
-                    request = registrationRequest
-                )
-                // Trust tier will be assigned by server, but we can cache it
-                saveTrustTier(response.trustTier.name)
-
-                Result.Success(Pair(deviceKeyId, publicKeyBase64))
-            } catch (e: Exception) {
-                Timber.e(e, "Failed to get or create device key")
-                Result.Error(exception = e, message = e.message)
-            }
-        }
-    }
-
-    /**
-     * Get the current device key ID from local storage.
-     */
-    private fun getDeviceKeyId(): String? {
-        // In production, use DataStore. For MVP, use SharedPreferences.
-        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
-        return prefs.getString(PrefsKeys.KEY_DEVICE_KEY_ID, null)
-    }
-
-    private fun saveDeviceKeyId(deviceKeyId: String) {
-        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString(PrefsKeys.KEY_DEVICE_KEY_ID, deviceKeyId).apply()
-        RetrofitClient.setDeviceKeyId(deviceKeyId)
-    }
-
-    private fun savePublicKey(publicKey: String) {
-        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString(PrefsKeys.KEY_PUBLIC_KEY, publicKey).apply()
-    }
-
-    private fun saveTrustTier(trustTier: String) {
-        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
-        prefs.edit().putString(PrefsKeys.KEY_TRUST_TIER, trustTier).apply()
-    }
-
-    private fun generateDeviceKeyId(): String {
-        return "device_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(8)}"
-    }
-
-    /**
-     * Build attestation summary from certificate chain.
-     */
-    private fun buildAttestationSummary(certChain: List<java.security.cert.X509Certificate>): AttestationSummary {
-        return AttestationSummary(
-            valid = true,
-            hardwareBacked = DeviceKeyManager.isHardwareBacked(),
-            platform = "android",
-            appIntegrity = true,
-            rooted = false,
-            extra = mapOf(
-                "cert_count" to certChain.size,
-                "api_level" to android.os.Build.VERSION.SDK_INT
             )
+        }
+    ) { paddingValues ->
+        LoadingOverlay(
+            isLoading = uiState.isLoading,
+            message = "Verifying media...",
+            progress = uiState.progress,
+            state = when {
+                uiState.isVerified && uiState.verdict != null -> LoadingState.SUCCESS
+                uiState.error != null -> LoadingState.ERROR
+                else -> LoadingState.LOADING
+            },
+            showCancelButton = true,
+            onCancel = {
+                viewModel.reset()
+            },
+            onDismiss = {
+                viewModel.clearError()
+            },
+            content = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(paddingValues)
+                        .padding(horizontal = 16.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Error message
+                    val errorMsg = uiState.error
+                    if (errorMsg != null) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Error.copy(alpha = 0.1f)
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Error,
+                                    contentDescription = "Error",
+                                    tint = Error,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = errorMsg,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Error,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(
+                                    onClick = viewModel::clearError,
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Dismiss",
+                                        tint = Error,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // ── Step 3.4: MediaPicker with camera support ──────────
+                    if (uiState.selectedFile == null) {
+                        MediaPicker(
+                            mediaType = MediaPickerType.IMAGE_AND_VIDEO,
+                            onResult = { result ->
+                                when (result) {
+                                    is MediaPickerResult.Success -> {
+                                        Timber.d("File selected: ${result.file.name}, type: ${result.mediaType}")
+                                        viewModel.setFile(result.file, result.mediaType)
+                                    }
+                                    is MediaPickerResult.Error -> {
+                                        Timber.e("Media picker error: ${result.message}")
+                                        // handled by viewModel
+                                    }
+                                    is MediaPickerResult.Cancelled -> {
+                                        Timber.d("Media picker cancelled")
+                                        // no-op
+                                    }
+                                }
+                            },
+                            showCamera = true,      // ── Step 3.4: Camera enabled ──
+                            showGallery = true,
+                            showFilePicker = true
+                        )
+                    }
+
+                    // Media preview (if file selected)
+                    val selectedFile = uiState.selectedFile
+                    val mediaType = uiState.mediaType
+                    if (selectedFile != null && mediaType != null) {
+                        MediaPreviewForVerify(
+                            file = selectedFile,
+                            mediaType = mediaType,
+                            sha256 = uiState.sha256,
+                            canonicalHash = uiState.canonicalHash,
+                            onClear = {
+                                viewModel.reset()
+                            },
+                            onVerify = {
+                                viewModel.verify()
+                            },
+                            isLoading = uiState.isLoading,
+                            isVerified = uiState.isVerified,
+                            hasResult = uiState.hasResult
+                        )
+                    }
+
+                    // Verdict result
+                    val verdict = uiState.verdict
+                    if (uiState.isVerified && verdict != null) {
+                        VerdictCard(
+                            verdict = verdict,
+                            mode = VerdictCardMode.STANDARD,
+                            modifier = Modifier.fillMaxWidth(),
+                            onEvidenceClick = { evidenceId ->
+                                onNavigateToVerdictDetail(evidenceId)
+                            }
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
         )
     }
+}
 
-    /**
-     * Get the current device trust tier from local cache.
-     */
-    fun getCachedTrustTier(): String? {
-        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
-        return prefs.getString(PrefsKeys.KEY_TRUST_TIER, null)
-    }
-
-    // ============================
-    // Evidence Registration
-    // ============================
-
-    /**
-     * Register a media file as evidence.
-     * Builds CEE, signs it, and sends to server.
-     */
-    suspend fun registerMedia(
-        file: File,
-        mediaType: String,
-        privacyFlags: PrivacyFlags = PrivacyFlags(),
-        captureTimeClaim: String? = null,
-        geolocationClaim: GeolocationClaim? = null,
-        chainParentEvidenceId: String? = null
-    ): Result<EvidenceRecord> {
-        return withContext(Dispatchers.IO) {
-            try {
-                // Ensure device key exists
-                val keyResult = getOrCreateDeviceKey()
-                if (keyResult is Result.Error) {
-                    return@withContext Result.Error(
-                        errorCode = "DEVICE_KEY_ERROR",
-                        message = "Failed to get device key"
+/**
+ * Media preview for Verify screen with verify button.
+ */
+@Composable
+private fun MediaPreviewForVerify(
+    file: java.io.File,
+    mediaType: String,
+    sha256: String?,
+    canonicalHash: String?,
+    onClear: () -> Unit,
+    onVerify: () -> Unit,
+    isLoading: Boolean,
+    isVerified: Boolean,
+    hasResult: Boolean
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Header
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE)
+                            Icons.Default.Image else Icons.Default.Videocam,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE) "Image" else "Video",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "•",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = file.getReadableSize(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }
-                val (deviceKeyId, publicKey) = (keyResult as Result.Success).data
-
-                // Build CEE
-                val cee = when (mediaType) {
-                    DmvpConstants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
-                        context = context,
-                        imageFile = file,
-                        deviceKeyId = deviceKeyId,
-                        publicKeyRef = publicKey,
-                        privacyFlags = privacyFlags,
-                        captureTimeClaim = captureTimeClaim,
-                        geolocationClaim = geolocationClaim,
-                        chainParentEvidenceId = chainParentEvidenceId
+                IconButton(
+                    onClick = onClear,
+                    modifier = Modifier.size(32.dp),
+                    enabled = !isLoading
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Remove",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                        modifier = Modifier.size(18.dp)
                     )
-                    DmvpConstants.MEDIA_TYPE_VIDEO -> CEEBuilder.buildFromVideoFile(
-                        context = context,
-                        videoFile = file,
-                        deviceKeyId = deviceKeyId,
-                        publicKeyRef = publicKey,
-                        privacyFlags = privacyFlags,
-                        captureTimeClaim = captureTimeClaim,
-                        geolocationClaim = geolocationClaim,
-                        chainParentEvidenceId = chainParentEvidenceId
-                    )
-                    else -> null
-                }
-
-                if (cee == null) {
-                    return@withContext Result.Error(
-                        errorCode = "CEE_BUILD_FAILED",
-                        message = "Failed to build Canonical Evidence Envelope"
-                    )
-                }
-
-                // Sign the request
-                val nonce = SignatureUtils.generateNonce()
-                val timestamp = currentIso8601()
-
-                // ── Step 3.3: Fix canonicalPayload with excludeSignature ──
-                val canonicalPayload = SignatureUtils.canonicalizePayload(
-                    payload = cee,
-                    excludeSignature = true
-                )
-                val canonicalRequest = "$canonicalPayload\n$nonce\n$timestamp"
-                val signature = DeviceKeyManager.signString(canonicalRequest)
-                if (signature == null) {
-                    return@withContext Result.Error(
-                        errorCode = "SIGNING_FAILED",
-                        message = "Failed to sign evidence"
-                    )
-                }
-
-                // ── Step 3.2: Idempotency key must be a UUID ──────────────
-                // Idempotency key must be a UUID per FR-CR-08.
-                val idempotencyKey = UUID.randomUUID().toString()
-
-                // Send registration
-                val response = apiService.registerEvidence(
-                    idempotencyKey = idempotencyKey,
-                    signature = signature,
-                    nonce = nonce,
-                    timestamp = timestamp,
-                    policyVersion = DmvpConstants.PROTOCOL_VERSION,
-                    cee = cee
-                )
-
-                // ── Step 3.3: Save evidence_id locally ──────────────────────
-                if (response.data != null) {
-                    LocalEvidenceStore.saveEvidenceId(context, response.data.evidenceId)
-                    Timber.d("Evidence registered and saved locally: ${response.data.evidenceId}")
-                    Result.Success(response.data)
-                } else {
-                    Result.Error(
-                        errorCode = "EMPTY_RESPONSE",
-                        message = "Server returned empty response"
-                    )
-                }
-            } catch (e: Exception) {
-                Timber.e(e, "Registration failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
                 }
             }
-        }
-    }
 
-    // ============================
-    // Verification
-    // ============================
-
-    /**
-     * Verify a media file against the registry using exact hash lookup.
-     * Step 3.4: Uses GET /evidence/by-hash/{sha256} instead of POST /verify
-     */
-    suspend fun verifyMedia(
-        sha256: String,
-        mediaType: String,
-        fingerprintProfile: RobustFingerprint? = null,
-        mode: String = "standard",
-        canonicalHash: String? = null,
-        deviceKeyId: String? = null
-    ): Result<MultiAxisVerdict> {
-        return withContext(Dispatchers.IO) {
-            try {
-                // ── Step 3.4: Call GET /evidence/by-hash/{sha256} ──────────
-                val evidence = apiService.getEvidenceByHash(
-                    sha256 = sha256,
-                    auth = ""
-                )
-
-                // ── Step 3.4: Build verdict for EXACT_MATCH ────────────────
-                val verdict = MultiAxisVerdict(
-                    integrityVerdict = IntegrityVerdict.EXACT_MATCH,
-                    provenanceVerdict = null,
-                    similarityVerdict = null,
-                    evidenceQualityVerdict = null,
-                    transformationIndicators = emptyList(),
-                    matchedEvidenceList = listOf(
-                        MatchedEvidence(
-                            evidenceId = evidence.evidenceId,
-                            sha256 = evidence.sha256Original,
-                            matchType = "exact",
-                            similarityScore = 1.0,
-                            timestamp = evidence.createdAt
+            // Thumbnail placeholder
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(120.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            imageVector = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE)
+                                Icons.Default.Image else Icons.Default.Videocam,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            modifier = Modifier.size(48.dp)
                         )
-                    ),
-                    algorithmVersionsUsed = mapOf(
-                        "integrity" to "sha256-v1",
-                        "lookup" to "exact-hash-v1"
-                    ),
-                    warnings = emptyList(),
-                    summaryUiScore = 100,
-                    metadata = mapOf(
-                        "status" to "VERIFIED",
-                        "media_type" to mediaType,
-                        "verification_mode" to mode
+                        Text(
+                            text = "Preview",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                        )
+                    }
+                }
+            }
+
+            // SHA-256
+            if (sha256 != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "SHA-256:",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
-                )
-
-                Timber.d("Verify exact hash match: sha256=$sha256 evidenceId=${evidence.evidenceId}")
-                Result.Success(verdict)
-
-            } catch (e: Exception) {
-                // ── Step 3.4: Handle 404 as NOT_REGISTERED ──────────────────
-                if (e is HttpException && e.code() == 404) {
-                    val verdict = MultiAxisVerdict(
-                        integrityVerdict = IntegrityVerdict.NO_EXACT_MATCH,
-                        provenanceVerdict = null,
-                        similarityVerdict = null,
-                        evidenceQualityVerdict = null,
-                        transformationIndicators = emptyList(),
-                        matchedEvidenceList = emptyList(),
-                        algorithmVersionsUsed = mapOf(
-                            "integrity" to "sha256-v1",
-                            "lookup" to "exact-hash-v1"
+                    Text(
+                        text = sha256.take(16) + "..." + sha256.takeLast(8),
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontFamily = FontFamily.Monospace
                         ),
-                        warnings = listOf("NOT_REGISTERED"),
-                        summaryUiScore = 0,
-                        metadata = mapOf(
-                            "status" to "NOT_REGISTERED",
-                            "media_type" to mediaType,
-                            "verification_mode" to mode
-                        )
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
+                }
+            }
 
-                    Timber.d("Verify no exact hash match: sha256=$sha256")
-                    Result.Success(verdict)
-                } else {
-                    Timber.e(e, "Verification failed")
-                    when (e) {
-                        is ApiException -> Result.Error(
-                            exception = e,
-                            errorCode = e.errorCode,
-                            message = e.message
-                        )
-                        else -> Result.Error(exception = e, message = e.message)
+            // Action buttons
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onVerify,
+                    modifier = Modifier.weight(1f),
+                    enabled = !isLoading && !isVerified,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Success,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Verified,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Verify")
+                }
+                if (isVerified && hasResult) {
+                    OutlinedButton(
+                        onClick = onClear,
+                        modifier = Modifier.weight(0.5f),
+                        enabled = !isLoading
+                    ) {
+                        Text("Clear")
                     }
-                }
-            }
-        }
-    }
-
-    /**
-     * Verify a file by generating fingerprint and hash.
-     */
-    suspend fun verifyFile(
-        file: File,
-        mediaType: String,
-        mode: String = "standard"
-    ): Result<MultiAxisVerdict> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val sha256 = HashUtils.sha256(file)
-                var canonicalHash: String? = null
-                var fingerprint: RobustFingerprint? = null
-
-                if (mode != "fast") {
-                    // Generate fingerprint
-                    fingerprint = when (mediaType) {
-                        DmvpConstants.MEDIA_TYPE_IMAGE -> FingerprintUtils.generateImageFingerprint(file.absolutePath)
-                        DmvpConstants.MEDIA_TYPE_VIDEO -> FingerprintUtils.generateVideoFingerprint(file.absolutePath)
-                        else -> null
-                    }
-                    // Canonical hash (optional)
-                    canonicalHash = HashUtils.canonicalHash(file, mediaType)
-                }
-
-                verifyMedia(
-                    sha256 = sha256,
-                    mediaType = mediaType,
-                    fingerprintProfile = fingerprint,
-                    mode = mode,
-                    canonicalHash = canonicalHash
-                )
-            } catch (e: Exception) {
-                Timber.e(e, "File verification failed")
-                Result.Error(exception = e, message = e.message)
-            }
-        }
-    }
-
-    // ============================
-    // Search
-    // ============================
-
-    /**
-     * Search for evidence.
-     */
-    suspend fun searchEvidence(
-        sha256: String,
-        mediaType: String,
-        fingerprintProfile: RobustFingerprint? = null,
-        canonicalHash: String? = null,
-        maxResults: Int = 10,
-        maxCandidates: Int = 100,
-        filters: Map<String, String>? = null
-    ): Result<SearchResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = SearchRequest(
-                    sha256 = sha256,
-                    canonicalMediaHash = canonicalHash,
-                    robustFingerprintProfile = fingerprintProfile,
-                    mediaType = mediaType,
-                    filters = filters,
-                    maxResults = maxResults,
-                    maxCandidates = maxCandidates
-                )
-                val response = apiService.searchEvidence(
-                    auth = "", // TODO: handle auth
-                    request = request
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Search failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * Get related evidence.
-     */
-    suspend fun getRelatedEvidence(
-        evidenceId: String,
-        maxResults: Int = 10
-    ): Result<RelatedEvidenceResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.getRelatedEvidence(
-                    evidenceId = evidenceId,
-                    auth = "",
-                    maxResults = maxResults
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Get related evidence failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    // ============================
-    // Device Lifecycle
-    // ============================
-
-    /**
-     * Rotate device key.
-     */
-    suspend fun rotateDeviceKey(
-        newDeviceKeyId: String,
-        newPublicKey: String,
-        attestationSummary: AttestationSummary? = null
-    ): Result<DeviceKey> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val oldDeviceKeyId = getDeviceKeyId() ?: return@withContext Result.Error(
-                    errorCode = "NO_DEVICE_KEY",
-                    message = "No current device key found"
-                )
-
-                val request = DeviceRotationRequest(
-                    newDeviceKeyId = newDeviceKeyId,
-                    newPublicKey = newPublicKey,
-                    attestationSummary = attestationSummary,
-                    platform = "android"
-                )
-
-                val response = apiService.rotateDeviceKey(
-                    deviceKeyId = oldDeviceKeyId,
-                    auth = "",
-                    request = request
-                )
-
-                // Update local cache
-                saveDeviceKeyId(newDeviceKeyId)
-                savePublicKey(newPublicKey)
-                saveTrustTier(response.trustTier.name)
-
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Device rotation failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * Revoke device key.
-     */
-    suspend fun revokeDeviceKey(deviceKeyId: String): Result<DeviceKey> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.revokeDeviceKey(
-                    deviceKeyId = deviceKeyId,
-                    auth = ""
-                )
-                // Clear local state if it's the current key
-                if (deviceKeyId == getDeviceKeyId()) {
-                    clearLocalDeviceState()
-                }
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Device revocation failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * Recover device lineage.
-     */
-    suspend fun recoverDeviceLineage(
-        oldDeviceKeyId: String,
-        newDeviceKeyId: String,
-        newPublicKey: String,
-        attestationSummary: AttestationSummary? = null,
-        recoveryQuorum: String? = null
-    ): Result<DeviceKey> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = DeviceRecoveryRequest(
-                    oldDeviceKeyId = oldDeviceKeyId,
-                    newDeviceKeyId = newDeviceKeyId,
-                    newPublicKey = newPublicKey,
-                    attestationSummary = attestationSummary,
-                    platform = "android",
-                    recoveryQuorum = recoveryQuorum
-                )
-
-                val response = apiService.recoverDeviceLineage(
-                    auth = "",
-                    request = request
-                )
-
-                // Update local cache to new key
-                saveDeviceKeyId(newDeviceKeyId)
-                savePublicKey(newPublicKey)
-                saveTrustTier(response.trustTier.name)
-
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Device recovery failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * Get device key info.
-     */
-    suspend fun getDeviceKeyInfo(deviceKeyId: String): Result<DeviceKey> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.getDeviceKey(
-                    deviceKeyId = deviceKeyId,
-                    auth = ""
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Get device key failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * List device keys.
-     */
-    suspend fun listDeviceKeys(
-        trustTier: String? = null,
-        lifecycleState: String? = null,
-        page: Int = 1,
-        limit: Int = 20
-    ): Result<DeviceListResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.listDeviceKeys(
-                    auth = "",
-                    trustTier = trustTier,
-                    lifecycleState = lifecycleState,
-                    page = page,
-                    limit = limit
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "List device keys failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    private fun clearLocalDeviceState() {
-        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
-        prefs.edit()
-            .remove(PrefsKeys.KEY_DEVICE_KEY_ID)
-            .remove(PrefsKeys.KEY_PUBLIC_KEY)
-            .remove(PrefsKeys.KEY_TRUST_TIER)
-            .apply()
-        RetrofitClient.clearSession()
-    }
-
-    // ============================
-    // Ownership Claims
-    // ============================
-
-    /**
-     * Submit ownership claim.
-     */
-    suspend fun submitOwnershipClaim(
-        evidenceId: String,
-        claimantIdentity: String,
-        claimType: String,
-        supportingData: Map<String, Any>? = null
-    ): Result<OwnershipClaim> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = OwnershipClaimRequest(
-                    evidenceId = evidenceId,
-                    claimantIdentity = claimantIdentity,
-                    claimType = claimType,
-                    supportingData = supportingData
-                )
-                val response = apiService.submitOwnershipClaim(
-                    auth = "",
-                    request = request
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Ownership claim submission failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * Get ownership claims for evidence.
-     */
-    suspend fun getOwnershipClaims(evidenceId: String): Result<OwnershipClaimListResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.getOwnershipClaims(
-                    evidenceId = evidenceId,
-                    auth = ""
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Get ownership claims failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    /**
-     * Review ownership claim (admin).
-     */
-    suspend fun reviewOwnershipClaim(
-        evidenceId: String,
-        claimId: String,
-        reviewStatus: String,
-        reviewNotes: String? = null
-    ): Result<OwnershipClaim> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = OwnershipClaimReviewRequest(
-                    reviewStatus = reviewStatus,
-                    reviewNotes = reviewNotes
-                )
-                val response = apiService.reviewOwnershipClaim(
-                    evidenceId = evidenceId,
-                    claimId = claimId,
-                    auth = "",
-                    request = request
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Review ownership claim failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    // ============================
-    // Premium Backup (optional)
-    // ============================
-    suspend fun backupMedia(evidenceId: String, encryptedData: ByteArray): Result<BackupResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = BackupRequest(
-                    evidenceId = evidenceId,
-                    encryptedData = android.util.Base64.encodeToString(encryptedData, android.util.Base64.NO_WRAP)
-                )
-                val response = apiService.backupMedia(
-                    auth = "",
-                    request = request
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Backup media failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    suspend fun restoreMedia(evidenceId: String): Result<RestoreResponse> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val request = RestoreRequest(evidenceId)
-                val response = apiService.restoreMedia(
-                    auth = "",
-                    request = request
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Restore media failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    suspend fun getPremiumStatus(): Result<PremiumStatus> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.getPremiumStatus(auth = "")
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Get premium status failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
-            }
-        }
-    }
-
-    // ============================
-    // Policy
-    // ============================
-
-    suspend fun getVerificationPolicy(): Result<VerificationPolicy> {
-        return withContext(Dispatchers.IO) {
-            try {
-                val response = apiService.getVerificationPolicy(auth = "")
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Get verification policy failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
                 }
             }
         }
     }
 }
 
-// ============================
-// Typealiases for convenience
-// ============================
+/**
+ * Extension to get readable file size.
+ */
+private fun java.io.File.getReadableSize(): String {
+    val size = this.length()
+    return when {
+        size < 1024 -> "$size B"
+        size < 1024 * 1024 -> String.format("%.1f KB", size / 1024.0)
+        size < 1024 * 1024 * 1024 -> String.format("%.1f MB", size / (1024.0 * 1024.0))
+        else -> String.format("%.2f GB", size / (1024.0 * 1024.0 * 1024.0))
+    }
+}
 
-typealias RepositoryResult<T> = Result<T>
+// ================================
+// Preview
+// ================================
+
+@Preview(showBackground = true, backgroundColor = 0xFF1A0033)
+@Composable
+private fun VerifyScreenPreview() {
+    DMVPTheme {
+        VerifyScreen(
+            onNavigateBack = {},
+            onNavigateToVerdictDetail = {}
+        )
+    }
+}
