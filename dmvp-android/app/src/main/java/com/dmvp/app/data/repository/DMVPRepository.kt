@@ -19,6 +19,7 @@ package com.dmvp.app.data.repository
 
 import android.content.Context
 import android.util.Log
+import com.dmvp.app.data.local.LocalEvidenceStore
 import com.dmvp.app.data.model.*
 import com.dmvp.app.data.remote.*
 import com.dmvp.app.security.DeviceKeyManager
@@ -240,7 +241,12 @@ class DMVPRepository(private val context: Context) {
                 // Sign the request
                 val nonce = SignatureUtils.generateNonce()
                 val timestamp = currentIso8601()
-                val canonicalPayload = SignatureUtils.canonicalizePayload(cee)
+
+                // ── Step 3.3: Fix canonicalPayload with excludeSignature ──
+                val canonicalPayload = SignatureUtils.canonicalizePayload(
+                    payload = cee,
+                    excludeSignature = true
+                )
                 val canonicalRequest = "$canonicalPayload\n$nonce\n$timestamp"
                 val signature = DeviceKeyManager.signString(canonicalRequest)
                 if (signature == null) {
@@ -264,7 +270,10 @@ class DMVPRepository(private val context: Context) {
                     cee = cee
                 )
 
+                // ── Step 3.3: Save evidence_id locally ──────────────────────
                 if (response.data != null) {
+                    LocalEvidenceStore.saveEvidenceId(context, response.data.evidenceId)
+                    Timber.d("Evidence registered and saved locally: ${response.data.evidenceId}")
                     Result.Success(response.data)
                 } else {
                     Result.Error(
