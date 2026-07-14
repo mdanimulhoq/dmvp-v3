@@ -35,6 +35,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import timber.log.Timber
+import retrofit2.HttpException
 
 private const val TAG = "DMVPRepository"
 
@@ -300,7 +301,8 @@ class DMVPRepository(private val context: Context) {
     // ============================
 
     /**
-     * Verify a media file against the registry.
+     * Verify a media file against the registry using exact hash lookup.
+     * Step 3.4: Uses GET /evidence/by-hash/{sha256} instead of POST /verify
      */
     suspend fun verifyMedia(
         sha256: String,
@@ -312,28 +314,79 @@ class DMVPRepository(private val context: Context) {
     ): Result<MultiAxisVerdict> {
         return withContext(Dispatchers.IO) {
             try {
-                val request = VerificationRequest(
+                // ── Step 3.4: Call GET /evidence/by-hash/{sha256} ──────────
+                val evidence = apiService.getEvidenceByHash(
                     sha256 = sha256,
-                    canonicalMediaHash = canonicalHash,
-                    mediaType = mediaType,
-                    robustFingerprintProfile = fingerprintProfile,
-                    verificationMode = mode,
-                    signerDeviceKeyId = deviceKeyId
+                    auth = ""
                 )
-                val response = apiService.verifyMedia(
-                    auth = "", // TODO: handle auth
-                    request = request
-                )
-                Result.Success(response)
-            } catch (e: Exception) {
-                Timber.e(e, "Verification failed")
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
+
+                // ── Step 3.4: Build verdict for EXACT_MATCH ────────────────
+                val verdict = MultiAxisVerdict(
+                    integrityVerdict = IntegrityVerdict.EXACT_MATCH,
+                    provenanceVerdict = null,
+                    similarityVerdict = null,
+                    evidenceQualityVerdict = null,
+                    transformationIndicators = emptyList(),
+                    matchedEvidenceList = listOf(
+                        MatchedEvidence(
+                            evidenceId = evidence.evidenceId,
+                            sha256 = evidence.sha256Original,
+                            matchType = "exact",
+                            similarityScore = 1.0,
+                            timestamp = evidence.createdAt
+                        )
+                    ),
+                    algorithmVersionsUsed = mapOf(
+                        "integrity" to "sha256-v1",
+                        "lookup" to "exact-hash-v1"
+                    ),
+                    warnings = emptyList(),
+                    summaryUiScore = 100,
+                    metadata = mapOf(
+                        "status" to "VERIFIED",
+                        "media_type" to mediaType,
+                        "verification_mode" to mode
                     )
-                    else -> Result.Error(exception = e, message = e.message)
+                )
+
+                Timber.d("Verify exact hash match: sha256=$sha256 evidenceId=${evidence.evidenceId}")
+                Result.Success(verdict)
+
+            } catch (e: Exception) {
+                // ── Step 3.4: Handle 404 as NOT_REGISTERED ──────────────────
+                if (e is HttpException && e.code() == 404) {
+                    val verdict = MultiAxisVerdict(
+                        integrityVerdict = IntegrityVerdict.NO_EXACT_MATCH,
+                        provenanceVerdict = null,
+                        similarityVerdict = null,
+                        evidenceQualityVerdict = null,
+                        transformationIndicators = emptyList(),
+                        matchedEvidenceList = emptyList(),
+                        algorithmVersionsUsed = mapOf(
+                            "integrity" to "sha256-v1",
+                            "lookup" to "exact-hash-v1"
+                        ),
+                        warnings = listOf("NOT_REGISTERED"),
+                        summaryUiScore = 0,
+                        metadata = mapOf(
+                            "status" to "NOT_REGISTERED",
+                            "media_type" to mediaType,
+                            "verification_mode" to mode
+                        )
+                    )
+
+                    Timber.d("Verify no exact hash match: sha256=$sha256")
+                    Result.Success(verdict)
+                } else {
+                    Timber.e(e, "Verification failed")
+                    when (e) {
+                        is ApiException -> Result.Error(
+                            exception = e,
+                            errorCode = e.errorCode,
+                            message = e.message
+                        )
+                        else -> Result.Error(exception = e, message = e.message)
+                    }
                 }
             }
         }
