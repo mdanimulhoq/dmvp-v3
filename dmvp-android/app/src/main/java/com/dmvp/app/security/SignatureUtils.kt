@@ -1,5 +1,6 @@
 package com.dmvp.app.security
 
+import com.dmvp.app.utils.CanonicalJson
 import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -43,11 +44,15 @@ object SignatureUtils {
         return iso8601Format.format(Date())
     }
 
-    fun canonicalizePayload(payload: Any): String {
+    fun canonicalizePayload(
+        payload: Any,
+        excludeSignature: Boolean = false
+    ): String {
         return try {
-            val json = gson.toJson(payload)
-            val jsonElement = JsonParser().parse(json)
-            gson.toJson(sortJson(jsonElement))
+            CanonicalJson.canonicalize(
+                value = payload,
+                excludeSignature = excludeSignature
+            )
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to canonicalize payload")
             gson.toJson(payload)
@@ -56,7 +61,7 @@ object SignatureUtils {
 
     fun signPayload(payload: Any): String? {
         return try {
-            val canonicalPayload = canonicalizePayload(payload)
+            val canonicalPayload = canonicalizePayload(payload, excludeSignature = true)
             signString(canonicalPayload)
         } catch (e: Exception) {
             Timber.tag(TAG).e(e, "Failed to sign payload")
@@ -134,7 +139,7 @@ object SignatureUtils {
     fun signRequest(payload: Any): Map<String, String> {
         val nonce = generateNonce()
         val timestamp = generateTimestamp()
-        val canonicalPayload = canonicalizePayload(payload)
+        val canonicalPayload = canonicalizePayload(payload, excludeSignature = true)
         val canonicalRequest = buildCanonicalRequest(
             canonicalPayload = canonicalPayload,
             nonce = nonce,
@@ -157,7 +162,7 @@ object SignatureUtils {
         publicKeyBase64: String
     ): Boolean {
         return try {
-            val canonicalPayload = canonicalizePayload(payload)
+            val canonicalPayload = canonicalizePayload(payload, excludeSignature = true)
             val canonicalRequest = buildCanonicalRequest(
                 canonicalPayload = canonicalPayload,
                 nonce = nonce,
