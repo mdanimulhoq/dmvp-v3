@@ -62,7 +62,8 @@ enum class VerdictCardMode {
 enum class VerdictStatus(val color: Color, val label: String) {
     VERIFIED(Success, "Verified"),
     PARTIAL(Warning, "Partial"),
-    UNVERIFIED(Error, "Unverified"),
+    // ── Step 3.5: Changed "Unverified" to "Failed" ──
+    UNVERIFIED(Error, "Failed"),
     UNKNOWN(Color.Gray, "Unknown")
 }
 
@@ -116,6 +117,14 @@ fun VerdictCard(
                     { isExpanded.value = !isExpanded.value }
                 } else null
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // ── Step 3.5: Forensic meta strip (evidence_id / device / timestamp) ──
+            if (mode != VerdictCardMode.COMPACT) {
+                Spacer(modifier = Modifier.height(8.dp))
+                VerdictMetaStrip(verdict = verdict)
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -262,6 +271,76 @@ private fun VerdictHeader(
         }
     }
 }
+
+// ── Step 3.5: Forensic meta strip ──────────────────────────────────────────
+
+/**
+ * Step 3.5 — Forensic meta strip:
+ * evidence_id (truncated), signer_device_key_id (truncated), registration timestamp.
+ * Reads from matchedEvidenceList[0] and metadata; gracefully falls back to "—".
+ */
+@Composable
+private fun VerdictMetaStrip(verdict: MultiAxisVerdict) {
+    val firstMatch = verdict.matchedEvidenceList.firstOrNull()
+    val evidenceId = firstMatch?.evidenceId
+    val timestamp = firstMatch?.timestamp
+        ?: verdict.metadata?.get("registered_at") as? String
+    val deviceKeyId = verdict.metadata?.get("signer_device_key_id") as? String
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        VerdictMetaRow(
+            label = "Evidence",
+            value = evidenceId?.let { truncateMiddle(it, 8, 6) } ?: "—"
+        )
+        VerdictMetaRow(
+            label = "Signed by",
+            value = deviceKeyId?.let { truncateMiddle(it, 10, 6) } ?: "—"
+        )
+        VerdictMetaRow(
+            label = "Registered",
+            value = timestamp ?: "—"
+        )
+    }
+}
+
+@Composable
+private fun VerdictMetaRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+            modifier = Modifier.weight(0.35f)
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+            ),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(0.65f)
+        )
+    }
+}
+
+private fun truncateMiddle(s: String, headLen: Int, tailLen: Int): String {
+    if (s.length <= headLen + tailLen + 1) return s
+    return s.take(headLen) + "…" + s.takeLast(tailLen)
+}
+
 /**
  * Compact verdict summary (used in compact mode).
  */
