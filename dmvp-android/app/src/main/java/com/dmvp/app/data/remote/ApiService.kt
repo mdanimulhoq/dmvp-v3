@@ -38,6 +38,7 @@ interface ApiService {
         @Header(ApiConstants.HEADER_REQUEST_SIGNATURE) signature: String,
         @Header(ApiConstants.HEADER_NONCE) nonce: String,
         @Header(ApiConstants.HEADER_TIMESTAMP) timestamp: String,
+        @Header(ApiConstants.HEADER_DEVICE_KEY_ID) deviceKeyId: String,
         @Header(ApiConstants.HEADER_POLICY_VERSION) policyVersion: String? = null,
         @Body cee: CEE
     ): ApiResponse<EvidenceRecord>
@@ -120,7 +121,7 @@ interface ApiService {
     /**
      * Rotate to a new device key.
      */
-    @POST("${ApiConstants.ENDPOINT_DEVICES_ROTATE}/{device_key_id}")
+    @POST("${ApiConstants.ENDPOINT_DEVICES_INFO}/{device_key_id}/rotate")
     suspend fun rotateDeviceKey(
         @Path("device_key_id") deviceKeyId: String,
         @Header(ApiConstants.HEADER_AUTHORIZATION) auth: String,
@@ -130,7 +131,7 @@ interface ApiService {
     /**
      * Revoke a device key.
      */
-    @POST("${ApiConstants.ENDPOINT_DEVICES_REVOKE}/{device_key_id}")
+    @POST("${ApiConstants.ENDPOINT_DEVICES_INFO}/{device_key_id}/revoke")
     suspend fun revokeDeviceKey(
         @Path("device_key_id") deviceKeyId: String,
         @Header(ApiConstants.HEADER_AUTHORIZATION) auth: String
