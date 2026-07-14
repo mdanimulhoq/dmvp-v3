@@ -80,8 +80,31 @@ class DMVPRepository(private val context: Context) {
                     // Key exists, get public key
                     val publicKey = DeviceKeyManager.getPublicKey()
                     if (publicKey != null) {
-                        val deviceKeyId = getDeviceKeyId() ?: generateDeviceKeyId()
-                        return@withContext Result.Success(Pair(deviceKeyId, publicKey))
+                        val storedDeviceKeyId = getDeviceKeyId()
+                        if (storedDeviceKeyId != null) {
+                            RetrofitClient.setDeviceKeyId(storedDeviceKeyId)
+                            return@withContext Result.Success(Pair(storedDeviceKeyId, publicKey))
+                        }
+
+                        /*
+                         * A failed previous run can leave a Keystore key without a saved
+                         * device_key_id. Do not invent an unregistered id and continue:
+                         * evidence registration will fail when the backend verifies the
+                         * signing device. Register the existing public key first.
+                         */
+                        val recoveredDeviceKeyId = generateDeviceKeyId()
+                        val registrationRequest = DeviceRegistrationRequest(
+                            deviceKeyId = recoveredDeviceKeyId,
+                            publicKey = publicKey,
+                            attestationSummary = buildAttestationSummary(emptyList()),
+                            platform = "android"
+                        )
+                        val response = apiService.registerDevice(request = registrationRequest)
+                        saveDeviceKeyId(recoveredDeviceKeyId)
+                        savePublicKey(publicKey)
+                        saveTrustTier(response.trustTier.name)
+                        Timber.d("Existing local key registered with new device key id: $recoveredDeviceKeyId")
+                        return@withContext Result.Success(Pair(recoveredDeviceKeyId, publicKey))
                     }
                 }
 
@@ -127,10 +150,15 @@ class DMVPRepository(private val context: Context) {
     /**
      * Get the current device key ID from local storage.
      */
-    private fun getDeviceKeyId(): String? {
+    fun getDeviceKeyId(): String? {
         // In production, use DataStore. For MVP, use SharedPreferences.
         val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
         return prefs.getString(PrefsKeys.KEY_DEVICE_KEY_ID, null)
+    }
+
+    fun getPublicKey(): String? {
+        val prefs = context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
+        return prefs.getString(PrefsKeys.KEY_PUBLIC_KEY, null) ?: DeviceKeyManager.getPublicKey()
     }
 
     private fun saveDeviceKeyId(deviceKeyId: String) {
@@ -266,6 +294,7 @@ class DMVPRepository(private val context: Context) {
                     signature = signature,
                     nonce = nonce,
                     timestamp = timestamp,
+                    deviceKeyId = deviceKeyId,
                     policyVersion = DmvpConstants.PROTOCOL_VERSION,
                     cee = cee
                 )
@@ -554,4 +583,183 @@ class DMVPRepository(private val context: Context) {
                         errorCode = e.errorCode,
                         message = e.message
                     )
-                    else -> Result.Error
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+
+    suspend fun revokeDeviceKey(deviceKeyId: String): Result<DeviceKey> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = apiService.revokeDeviceKey(
+                    deviceKeyId = deviceKeyId,
+                    auth = ""
+                )
+
+                if (deviceKeyId == getDeviceKeyId()) {
+                    context.getSharedPreferences("dmvp_prefs", Context.MODE_PRIVATE)
+                        .edit()
+                        .remove(PrefsKeys.KEY_DEVICE_KEY_ID)
+                        .remove(PrefsKeys.KEY_PUBLIC_KEY)
+                        .remove(PrefsKeys.KEY_TRUST_TIER)
+                        .apply()
+                    RetrofitClient.clearSession()
+                }
+
+                Result.Success(response)
+            } catch (e: Exception) {
+                Timber.e(e, "Device revocation failed")
+                when (e) {
+                    is ApiException -> Result.Error(
+                        exception = e,
+                        errorCode = e.errorCode,
+                        message = e.message
+                    )
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+
+    suspend fun recoverDeviceLineage(
+        oldDeviceKeyId: String,
+        newDeviceKeyId: String,
+        newPublicKey: String,
+        attestationSummary: AttestationSummary? = null,
+        recoveryQuorum: String? = null
+    ): Result<DeviceKey> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val request = DeviceRecoveryRequest(
+                    oldDeviceKeyId = oldDeviceKeyId,
+                    newDeviceKeyId = newDeviceKeyId,
+                    newPublicKey = newPublicKey,
+                    attestationSummary = attestationSummary,
+                    platform = "android",
+                    recoveryQuorum = recoveryQuorum
+                )
+
+                val response = apiService.recoverDeviceLineage(
+                    auth = "",
+                    request = request
+                )
+
+                saveDeviceKeyId(response.deviceKeyId)
+                savePublicKey(response.publicKey)
+                saveTrustTier(response.trustTier.name)
+
+                Result.Success(response)
+            } catch (e: Exception) {
+                Timber.e(e, "Device recovery failed")
+                when (e) {
+                    is ApiException -> Result.Error(
+                        exception = e,
+                        errorCode = e.errorCode,
+                        message = e.message
+                    )
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+
+    suspend fun getDeviceKeyInfo(deviceKeyId: String): Result<DeviceKey> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = apiService.getDeviceKey(
+                    deviceKeyId = deviceKeyId,
+                    auth = ""
+                )
+                Result.Success(response)
+            } catch (e: Exception) {
+                Timber.e(e, "Get device key failed")
+
+                if (deviceKeyId == getDeviceKeyId()) {
+                    val localPublicKey = getPublicKey()
+                    val localTrustTier = runCatching {
+                        DeviceTrustTier.valueOf(getCachedTrustTier() ?: DeviceKeyManager.getTrustTierName())
+                    }.getOrDefault(DeviceTrustTier.TIER_C)
+
+                    if (localPublicKey != null) {
+                        return@withContext Result.Success(
+                            DeviceKey(
+                                deviceKeyId = deviceKeyId,
+                                publicKey = localPublicKey,
+                                trustTier = localTrustTier,
+                                lifecycleState = DeviceLifecycleState.ACTIVE
+                            )
+                        )
+                    }
+                }
+
+                when (e) {
+                    is ApiException -> Result.Error(
+                        exception = e,
+                        errorCode = e.errorCode,
+                        message = e.message
+                    )
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+
+    suspend fun listDeviceKeys(
+        trustTier: String? = null,
+        lifecycleState: String? = null,
+        page: Int = 1,
+        limit: Int = 20
+    ): Result<DeviceListResponse> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = apiService.listDeviceKeys(
+                    trustTier = trustTier,
+                    lifecycleState = lifecycleState,
+                    page = page,
+                    limit = limit
+                )
+                Result.Success(response)
+            } catch (e: Exception) {
+                Timber.e(e, "List device keys failed")
+
+                /*
+                 * The current MVP app has no user JWT login flow yet, while some backend
+                 * device-list deployments still require Authorization. Keep the Device
+                 * screen usable by surfacing the locally registered key instead of showing
+                 * a blocking HTTP 401.
+                 */
+                val localDeviceKeyId = getDeviceKeyId()
+                val localPublicKey = getPublicKey()
+                if (localDeviceKeyId != null && localPublicKey != null) {
+                    val localTrustTier = runCatching {
+                        DeviceTrustTier.valueOf(getCachedTrustTier() ?: DeviceKeyManager.getTrustTierName())
+                    }.getOrDefault(DeviceTrustTier.TIER_C)
+                    val localDevice = DeviceKey(
+                        deviceKeyId = localDeviceKeyId,
+                        publicKey = localPublicKey,
+                        trustTier = localTrustTier,
+                        lifecycleState = DeviceLifecycleState.ACTIVE
+                    )
+                    return@withContext Result.Success(
+                        DeviceListResponse(
+                            items = listOf(localDevice),
+                            total = 1,
+                            page = page,
+                            limit = limit
+                        )
+                    )
+                }
+
+                when (e) {
+                    is ApiException -> Result.Error(
+                        exception = e,
+                        errorCode = e.errorCode,
+                        message = e.message
+                    )
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+}
