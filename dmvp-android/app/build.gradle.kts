@@ -10,7 +10,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("com.google.devtools.ksp")
+    id("org.jetbrains.kotlin.kapt")
     id("com.google.dagger.hilt.android")
 }
 
@@ -109,7 +109,7 @@ dependencies {
 
     // Dagger Hilt for dependency injection
     implementation("com.google.dagger:hilt-android:2.51.1")
-    ksp("com.google.dagger:hilt-compiler:2.51.1")
+    kapt("com.google.dagger:hilt-compiler:2.51.1")
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
     // CameraX
