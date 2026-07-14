@@ -430,9 +430,17 @@ async function verifySignature(req, res, next) {
   }
 
   const { device } = deviceLookup;
-  const canonicalBytes = canonicalSerialize(req.body);
+
+  // ── Step 3.3: Fix signature verification with nonce + timestamp ──
+  // Android signed payload is: canonicalPayload + "\n" + nonce + "\n" + timestamp
+  const canonicalPayload = canonicalSerialize(req.body).toString('utf8');
+  const canonicalRequestBytes = Buffer.from(
+    `${canonicalPayload}\n${nonce}\n${timestampHeaderValue}`,
+    'utf8'
+  );
+
   const signatureValid = verifyEcdsaSignature(
-    canonicalBytes,
+    canonicalRequestBytes,
     signatureBase64,
     device.publicKeyPem
   );
