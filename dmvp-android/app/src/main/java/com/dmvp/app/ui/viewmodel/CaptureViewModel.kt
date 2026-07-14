@@ -24,6 +24,7 @@ import com.dmvp.app.utils.DmvpConstants
 import com.dmvp.app.utils.VerificationConstants
 import com.dmvp.app.utils.currentIso8601
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -64,7 +65,8 @@ enum class ValidationMode {
 
 @HiltViewModel
 class CaptureViewModel @Inject constructor(
-    private val repository: DMVPRepository
+    private val repository: DMVPRepository,
+    @ApplicationContext private val appContext: Context
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(CaptureUiState())
@@ -88,16 +90,31 @@ class CaptureViewModel @Inject constructor(
         }
     }
 
+    // ── Step 3.3: Updated setCapturedFile with captureTimeClaim ──
     fun setCapturedFile(file: File, mediaType: String) {
         _uiState.update {
-            it.copy(selectedFile = file, mediaType = mediaType, isCapturing = false, validationMode = ValidationMode.PROCESSING)
+            it.copy(
+                selectedFile = file,
+                mediaType = mediaType,
+                isCapturing = false,
+                captureTimeClaim = it.captureTimeClaim ?: currentIso8601(),
+                validationMode = ValidationMode.PROCESSING
+            )
         }
         processMediaFile(file, mediaType)
     }
 
+    // ── Step 3.3: Updated setGalleryFile with captureTimeClaim ──
     fun setGalleryFile(file: File, mediaType: String) {
         _uiState.update {
-            it.copy(selectedFile = file, selectedUri = null, mediaType = mediaType, isCapturing = false, validationMode = ValidationMode.PROCESSING)
+            it.copy(
+                selectedFile = file,
+                selectedUri = null,
+                mediaType = mediaType,
+                isCapturing = false,
+                captureTimeClaim = it.captureTimeClaim ?: currentIso8601(),
+                validationMode = ValidationMode.PROCESSING
+            )
         }
         processMediaFile(file, mediaType)
     }
@@ -129,9 +146,11 @@ class CaptureViewModel @Inject constructor(
                 val deviceKeyResult = repository.getOrCreateDeviceKey()
                 if (deviceKeyResult is Result.Success) {
                     val (deviceKeyId, publicKey) = deviceKeyResult.data
+
+                    // ── Step 3.3: Fix CEEBuilder context bug ──
                     val cee = when (mediaType) {
                         DmvpConstants.MEDIA_TYPE_IMAGE -> CEEBuilder.buildFromImageFile(
-                            context = file.context ?: return@launch,
+                            context = appContext,  // ← Fixed: was file.context
                             imageFile = file,
                             deviceKeyId = deviceKeyId,
                             publicKeyRef = publicKey,
@@ -140,7 +159,7 @@ class CaptureViewModel @Inject constructor(
                             geolocationClaim = uiState.value.geolocationClaim
                         )
                         DmvpConstants.MEDIA_TYPE_VIDEO -> CEEBuilder.buildFromVideoFile(
-                            context = file.context ?: return@launch,
+                            context = appContext,  // ← Fixed: was file.context
                             videoFile = file,
                             deviceKeyId = deviceKeyId,
                             publicKeyRef = publicKey,
@@ -328,7 +347,8 @@ class CaptureViewModel @Inject constructor(
     }
 }
 
-private val File.context: Context? get() = null
+// ── Step 3.3: DELETE this line ──
+// private val File.context: Context? get() = null
 
 fun CaptureUiState.isReadyForRegistration(): Boolean {
     return validationMode == ValidationMode.READY_FOR_REGISTRATION &&
