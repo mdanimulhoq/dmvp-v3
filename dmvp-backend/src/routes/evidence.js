@@ -16,7 +16,6 @@
 const express = require('express');
 const router = express.Router();
 
-const { authenticate } = require('../middleware/auth');
 const { registerRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
 const { computeSHA256Sync } = require('../utils/hashUtils');
@@ -29,6 +28,9 @@ const {
   claimIdempotencyKey,
   completeIdempotencyKey,
 } = require('../utils/idempotency');
+
+// ── Step 3.3: Import signature verification middleware ─────────────────────
+const { verifySignature } = require('../middleware/signatureVerify');
 
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
 const PROTOCOL_VERSION = process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0';
@@ -58,50 +60,96 @@ function isValidSHA256(str) {
   return typeof str === 'string' && /^[0-9a-f]{64}$/i.test(str);
 }
 
+// ── Step 3.3: Helper to pick snake_case or camelCase fields ────────────────
+
+function pick(body, snakeName, camelName, fallback = null) {
+  if (body && body[snakeName] !== undefined) {
+    return body[snakeName];
+  }
+
+  if (body && body[camelName] !== undefined) {
+    return body[camelName];
+  }
+
+  return fallback;
+}
+
+// ── Step 3.3: Build evidence response with data envelope ──────────────────
+
+function buildEvidenceResponse(evidence, idempotencyKey, warnings = []) {
+  return {
+    data: {
+      evidence_id: evidence.evidenceId,
+      media_type: evidence.mediaType,
+      sha256_original: evidence.sha256Original,
+      canonical_media_hash: evidence.canonicalMediaHash,
+      fingerprint_profile: evidence.robustFingerprintProfile,
+      fingerprint_algorithm_versions: evidence.fingerprintAlgorithmVersions,
+      signer_device_key_id: evidence.signerDeviceKeyId,
+      timestamp_references: {
+        registration_server_time: evidence.registrationServerTime.toISOString(),
+        trusted_timestamp_token_reference: evidence.trustedTimestampTokenReference,
+      },
+      privacy_flags: evidence.privacyFlags,
+      lifecycle_state: evidence.status,
+      created_at: evidence.createdAt.toISOString(),
+      updated_at: evidence.updatedAt.toISOString(),
+    },
+    server_time: new Date().toISOString(),
+    warnings,
+    idempotencyKey,
+    protocol_version: PROTOCOL_VERSION,
+    policy_version: POLICY_VERSION,
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /evidence
 // Register a new Canonical Evidence Envelope (CEE)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Step 3.3: Remove authenticate, add verifySignature ──────────────────
+
 router.post(
   '/',
-  authenticate,
   registerRateLimit,
+  verifySignature,
   async (req, res, next) => {
     try {
-      // ── Step 3.2: Remove idempotencyKey from body destructuring ────────
-      const {
-        evidenceId,
-        mediaType,
-        sha256Original,
-        canonicalMediaHash,
-        robustFingerprintProfile,
-        fingerprintAlgorithmVersions,
-        signerDeviceKeyId,
-        signerPublicKeyReference,
-        signatureAlgorithm,
-        deviceAttestationSummary,
-        trustedTimestampTokenReference,
-        captureTimeClaim,
-        geolocationLat,
-        geolocationLng,
-        privacyFlags,
-        clientAppVersion,
-        verificationPolicyVersion,
-        chainParentEvidenceId,
-        auditReference,
-        signature,
-        perceptualHash,
-        fingerprintPrimary,
-        fingerprintSearchTokens,
-        durationMs,
-        width,
-        height,
-        codec,
-        frameRate,
-        transformHints,
-        // idempotencyKey, // <-- REMOVED: now taken from headers
-      } = req.body;
+      // ── Step 3.3: Use pick() for snake_case support ─────────────────────
+      const body = req.body || {};
+
+      const evidenceId = pick(body, 'evidence_id', 'evidenceId');
+      const mediaType = pick(body, 'media_type', 'mediaType');
+      const sha256Original = pick(body, 'sha256_original', 'sha256Original');
+      const canonicalMediaHash = pick(body, 'canonical_media_hash', 'canonicalMediaHash');
+      const robustFingerprintProfile = pick(body, 'robust_fingerprint_profile', 'robustFingerprintProfile');
+      const fingerprintAlgorithmVersions = pick(body, 'fingerprint_algorithm_versions', 'fingerprintAlgorithmVersions');
+      const signerDeviceKeyId = pick(body, 'signer_device_key_id', 'signerDeviceKeyId');
+      const signerPublicKeyReference = pick(body, 'signer_public_key_reference', 'signerPublicKeyReference');
+      const signatureAlgorithm = pick(body, 'signature_algorithm', 'signatureAlgorithm');
+      const deviceAttestationSummary = pick(body, 'device_attestation_summary', 'deviceAttestationSummary');
+      const trustedTimestampTokenReference = pick(body, 'trusted_timestamp_token_reference', 'trustedTimestampTokenReference');
+      const captureTimeClaim = pick(body, 'capture_time_claim', 'captureTimeClaim');
+      const geolocationClaim = pick(body, 'geolocation_claim', 'geolocationClaim');
+      const privacyFlags = pick(body, 'privacy_flags', 'privacyFlags');
+      const clientAppVersion = pick(body, 'client_app_version', 'clientAppVersion');
+      const verificationPolicyVersion = pick(body, 'verification_policy_version', 'verificationPolicyVersion');
+      const chainParentEvidenceId = pick(body, 'chain_parent_evidence_id', 'chainParentEvidenceId');
+      const auditReference = pick(body, 'audit_reference', 'auditReference');
+      const signature = pick(body, 'signature', 'signature');
+      const perceptualHash = pick(body, 'perceptual_hash', 'perceptualHash');
+      const fingerprintPrimary = pick(body, 'fingerprint_primary', 'fingerprintPrimary');
+      const fingerprintSearchTokens = pick(body, 'fingerprint_search_tokens', 'fingerprintSearchTokens');
+      const durationMs = pick(body, 'duration_ms', 'durationMs');
+      const width = pick(body, 'width', 'width');
+      const height = pick(body, 'height', 'height');
+      const codec = pick(body, 'codec', 'codec');
+      const frameRate = pick(body, 'frame_rate', 'frameRate');
+      const transformHints = pick(body, 'transform_hints', 'transformHints');
+
+      const geolocationLat = pick(body, 'geolocation_lat', 'geolocationLat', geolocationClaim?.lat);
+      const geolocationLng = pick(body, 'geolocation_lng', 'geolocationLng', geolocationClaim?.lng);
 
       // ── Validation ────────────────────────────────────────────────────────
       if (!evidenceId || !isValidUUID(evidenceId)) {
@@ -134,10 +182,7 @@ router.post(
         );
       }
 
-      // ── Step 3.2: DELETE old idempotency block ──────────────────────────
-      // (The old block has been removed from here)
-
-      // ── Step 3.2: Add NEW idempotency logic after signature validation ──
+      // ── Step 3.2: Idempotency logic ──────────────────────────────────────
 
       // Get idempotency key from header
       const idempotencyKey = getIdempotencyKey(req);
@@ -269,8 +314,7 @@ router.post(
           transformHints: transformHints || null,
           status: 'ACTIVE',
           requestId: req.requestId,
-          // ── Step 3.2: Update idempotencyKey field ────────────────────────
-          idempotencyKey, // <-- Now directly uses the header value
+          idempotencyKey,
         },
       });
 
@@ -294,18 +338,20 @@ router.post(
 
       console.info(`[Evidence] Registered: ${evidenceId} device=${signerDeviceKeyId}`);
 
-      // ── Step 3.2: Replace final success response ─────────────────────────
+      // ── Step 3.3: Build warnings and response ────────────────────────────
+
+      const warnings = [];
+
+      if (!captureTimeClaim) {
+        warnings.push('capture_time_claim_missing');
+      }
+
+      if (!trustedTimestampTokenReference) {
+        warnings.push('trusted_timestamp_token_not_available');
+      }
 
       const responseBody = {
-        success: true,
-        evidenceId: evidence.evidenceId,
-        mediaType: evidence.mediaType,
-        sha256Original: evidence.sha256Original,
-        status: evidence.status,
-        createdAt: evidence.createdAt.toISOString(),
-        idempotencyKey,
-        protocol_version: PROTOCOL_VERSION,
-        policy_version: POLICY_VERSION,
+        ...buildEvidenceResponse(evidence, idempotencyKey, warnings),
         request_id: req.requestId,
       };
 
