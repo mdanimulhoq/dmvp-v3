@@ -36,6 +36,9 @@ const { verifySignature } = require('../middleware/signatureVerify');
 // ── Step 6.1: Import timestamp service ─────────────────────────────────────
 const { getTimestamp } = require('../utils/timestampService');
 
+// ── Step 7.1: Import audit chain utility ──────────────────────────────────
+const { createChainedAuditLog } = require('../utils/auditChain');
+
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
 const PROTOCOL_VERSION = process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0';
 
@@ -358,21 +361,19 @@ router.post(
         },
       });
 
-      // ── Audit log ─────────────────────────────────────────────────────────
-      await prisma.auditLog.create({
-        data: {
-          requestId: req.requestId,
-          action: 'EVIDENCE_REGISTERED',
-          entityType: 'Evidence',
-          entityId: evidenceId,
-          actorDeviceId: device.deviceId,
-          actorKeyId: signerDeviceKeyId,
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'] || null,
-          details: {
-            mediaType: evidence.mediaType,
-            trustTier: device.trustTier,
-          },
+      // ── Step 7.1: Audit log with hash chaining ──────────────────────────
+      await createChainedAuditLog({
+        requestId: req.requestId,
+        action: 'EVIDENCE_REGISTERED',
+        entityType: 'Evidence',
+        entityId: evidenceId,
+        actorDeviceId: device.deviceId,
+        actorKeyId: signerDeviceKeyId,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent'] || null,
+        details: {
+          mediaType: evidence.mediaType,
+          trustTier: device.trustTier,
         },
       });
 
