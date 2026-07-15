@@ -10,7 +10,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    id("org.jetbrains.kotlin.kapt")
+    // ── Step: Replace kapt with ksp ──
+    id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
 }
 
@@ -107,9 +108,9 @@ dependencies {
     // Needed for ListenableFuture.await() used with CameraX's ProcessCameraProvider
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
 
-    // Dagger Hilt for dependency injection
-    implementation("com.google.dagger:hilt-android:2.51.1")
-    kapt("com.google.dagger:hilt-compiler:2.51.1")
+    // ── Step: Dagger Hilt with KSP (replaced kapt) ──
+    implementation("com.google.dagger:hilt-android:2.52")
+    ksp("com.google.dagger:hilt-compiler:2.52")
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
     // CameraX
@@ -130,7 +131,7 @@ dependencies {
     // Image loading: Coil with Compose
     implementation("io.coil-kt:coil-compose:2.6.0")
 
-    // Perceptual hash (pHash) â€“ we'll use a library or custom implementation.
+    // Perceptual hash (pHash) – we'll use a library or custom implementation.
     // For Android, we can use the pHash library if available, but we'll use a custom utility.
     // We'll include a pure-Kotlin implementation or use OpenCV? But OpenCV is heavy.
     // For MVP, we'll rely on a simple implementation using Android's Bitmap and a custom hash.
