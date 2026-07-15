@@ -19,6 +19,27 @@ android {
     namespace = "com.dmvp.app"
     compileSdk = 34
 
+    // ── Step 7.5: signingConfigs block ──
+    signingConfigs {
+        create("release") {
+            // Create keystore.properties file in project root:
+            // storeFile=path/to/keystore.jks
+            // storePassword=your_password
+            // keyAlias=your_alias
+            // keyPassword=your_key_password
+            val keystorePropertiesFile = rootProject.file("keystore.properties")
+            if (keystorePropertiesFile.exists()) {
+                val keystoreProperties = java.util.Properties().apply {
+                    load(keystorePropertiesFile.inputStream())
+                }
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "com.dmvp.app"
         minSdk = 26
@@ -42,6 +63,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            signingConfig = signingConfigs.getByName("release")  // ── Step 7.5 ──
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
