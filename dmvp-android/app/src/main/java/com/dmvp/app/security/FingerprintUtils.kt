@@ -178,7 +178,8 @@ object FingerprintUtils {
             // ── Step 4.7: Extract video metadata for transformation detection ──
             val widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
             val heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
-            val codecStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_MIMETYPE)
+            // ── Fix: Use METADATA_KEY_MIMETYPE instead of METADATA_KEY_VIDEO_MIMETYPE ──
+            val codecStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_MIMETYPE)
 
             val width = widthStr?.toIntOrNull()
             val height = heightStr?.toIntOrNull()
