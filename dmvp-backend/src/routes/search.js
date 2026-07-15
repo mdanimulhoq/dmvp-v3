@@ -17,8 +17,11 @@ const express = require('express');
 const router = express.Router();
 
 const { authenticate } = require('../middleware/auth');
-const { generalRateLimit } = require('../middleware/rateLimit');
+// ── Step 5.2: Use searchRateLimit instead of generalRateLimit ──
+const { searchRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
+// ── Step 5.2: Import hash utilities ──
+const { hammingDistance, compareFingerprintProfiles } = require('../utils/hashUtils');
 
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
 
@@ -68,10 +71,11 @@ router.get(
 // Search for related or similar evidence (staged matching)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Step 5.2: Use searchRateLimit instead of generalRateLimit ──
 router.post(
   '/',
   authenticate,
-  generalRateLimit,
+  searchRateLimit,
   async (req, res, next) => {
     try {
       const {
@@ -134,73 +138,67 @@ router.post(
         });
       }
 
-      // ── Stage 1: Coarse candidate generation ────────────────────────────────
-      let candidates = [];
+      // ── Step 5.2: Stage 1 + Stage 2 — Candidate generation and ranking ──
 
-      // Try perceptual hash prefix match
-      if (perceptualHash) {
-        candidates = await prisma.evidence.findMany({
-          where: {
-            perceptualHash: {
-              startsWith: perceptualHash.substring(0, 8),
-            },
-            mediaType: mediaType.toUpperCase(),
-          },
-          take: candidateLimit,
-          include: {
-            signerDevice: {
-              select: {
-                deviceId: true,
-                keyId: true,
-                trustTier: true,
-              },
-            },
-          },
-        });
-      }
+      const candidates = await prisma.evidence.findMany({
+        where: {
+          mediaType: mediaType.toUpperCase(),
+          NOT: { sha256Original: sha256.toLowerCase() },
+        },
+        take: 1000,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          signerDevice: { select: { deviceId: true, keyId: true, trustTier: true } },
+        },
+      });
 
-      // Fallback: search by media type and time window
-      if (candidates.length === 0) {
-        candidates = await prisma.evidence.findMany({
-          where: {
-            mediaType: mediaType.toUpperCase(),
-          },
-          take: candidateLimit,
-          orderBy: { createdAt: 'desc' },
-          include: {
-            signerDevice: {
-              select: {
-                deviceId: true,
-                keyId: true,
-                trustTier: true,
-              },
-            },
-          },
-        });
-      }
+      const queryFp = fingerprintProfile || { phash: perceptualHash };
 
-      // ── Stage 2: Re-ranking (simplified) ──────────────────────────────────
-      const ranked = candidates.map(c => ({
-        evidenceId: c.evidenceId,
-        sha256Original: c.sha256Original,
-        mediaType: c.mediaType,
-        registrationServerTime: c.registrationServerTime,
-        signerDeviceKeyId: c.signerDeviceKeyId,
-        trustTier: c.signerDevice?.trustTier,
-        match_type: 'SIMILAR',
-      }));
+      const ranked = candidates
+        .map(c => {
+          let similarityScore = 0;
+          if (c.robustFingerprintProfile && queryFp) {
+            try { similarityScore = compareFingerprintProfiles(queryFp, c.robustFingerprintProfile); } catch (e) {}
+          }
+          if (similarityScore === 0 && perceptualHash && c.perceptualHash) {
+            try {
+              const dist = hammingDistance(perceptualHash, c.perceptualHash);
+              similarityScore = Math.max(0, 1 - dist / (perceptualHash.length * 4));
+            } catch (e) {}
+          }
+          return {
+            evidenceId: c.evidenceId,
+            sha256Original: c.sha256Original,
+            mediaType: c.mediaType,
+            registrationServerTime: c.registrationServerTime,
+            signerDeviceKeyId: c.signerDeviceKeyId,
+            trustTier: c.signerDevice?.trustTier,
+            similarity_score: similarityScore,
+            match_type: similarityScore >= 0.8 ? 'STRONG_DERIVATIVE' :
+                        similarityScore >= 0.5 ? 'PROBABLE_DERIVATIVE' : 'WEAK_SIMILARITY',
+          };
+        })
+        .filter(r => r.similarity_score > 0.3)
+        .sort((a, b) => b.similarity_score - a.similarity_score)
+        .slice(0, limit);
 
-      // ── Stage 3: Verdict construction ─────────────────────────────────────
+      // ── Step 5.2: Stage 3 — Verdict construction ──────────────────────
+
       const totalMatches = ranked.length;
-      const similarityVerdict = totalMatches > 0 ? 'WEAK_SIMILARITY' : 'NO_RELIABLE_SIMILARITY';
+      const bestScore = ranked[0]?.similarity_score || 0;
+      const similarityVerdict = bestScore >= 0.8 ? 'STRONG_DERIVATIVE' :
+                                bestScore >= 0.5 ? 'PROBABLE_DERIVATIVE' :
+                                totalMatches > 0 ? 'WEAK_SIMILARITY' : 'NO_RELIABLE_SIMILARITY';
 
       console.info(`[Search] ${totalMatches} candidates for ${sha256.substring(0, 16)}...`);
 
       return res.status(200).json({
         stage: 'similarity_search',
         total_matches: totalMatches,
+        best_score: bestScore,
         similarity_verdict: similarityVerdict,
-        results: ranked.slice(0, limit),
+        results: ranked,
+        algorithm_versions: { fingerprint: 'phash-dct-v1', similarity: 'hamming-v1' },
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
