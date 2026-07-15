@@ -209,6 +209,7 @@ router.post(
 
       console.info(`[Verify] ${integrityVerdict} for ${sha256.substring(0, 16)}... mode=${mode}`);
 
+      // ── Step 4.3: Add algorithm versions to response ─────────────────────
       return res.status(200).json({
         integrity_verdict: integrityVerdict,
         provenance_verdict: provenanceVerdict,
@@ -218,6 +219,11 @@ router.post(
         transformation_indicators: transformationIndicators,
         matched_evidence: matchedEvidence,
         verification_mode: mode,
+        algorithm_versions_used: {
+          fingerprint: "phash-dct-v1",
+          similarity: "hamming-v1",
+          normalization: "jpeg-baseline-v1"
+        },
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -250,8 +256,9 @@ router.get(
       provenance_checks: ['device_trust_tier', 'attestation'],
       timestamp_modes: ['standard', 'enhanced', 'high_assurance'],
       algorithm_versions: {
-        fingerprint: 'v1.0',
-        similarity: 'v1.0',
+        fingerprint: 'phash-dct-v1',
+        similarity: 'hamming-v1',
+        normalization: 'jpeg-baseline-v1',
       },
       evidence_quality_mapping: {
         TIER_A: 'HIGH_EVIDENTIARY_STRENGTH',
