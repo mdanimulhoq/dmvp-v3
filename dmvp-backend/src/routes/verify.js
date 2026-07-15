@@ -16,7 +16,8 @@
 const express = require('express');
 const router = express.Router();
 
-const { authenticate } = require('../middleware/auth');
+// ── Fix: authenticate removed for Android (no JWT) ──
+// const { authenticate } = require('../middleware/auth');
 const { verifyRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
 
@@ -226,9 +227,9 @@ function calculateEvidenceQuality(trustTier, hasTimestamp, isAlgoCurrent) {
 // Verification service info
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Fix: authenticate removed ──
 router.get(
   '/',
-  authenticate,
   async (req, res) => {
     return res.status(200).json({
       service: 'DMVP Verification',
@@ -248,9 +249,9 @@ router.get(
 // Submit a verification request and receive multi-axis verdict
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Fix: authenticate removed ──
 router.post(
   '/',
-  authenticate,
   verifyRateLimit,
   async (req, res, next) => {
     try {
@@ -547,9 +548,9 @@ router.post(
 // Retrieve active verification policy metadata
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Fix: authenticate removed ──
 router.get(
   '/policy',
-  authenticate,
   async (req, res) => {
     return res.status(200).json({
       policy_version: POLICY_VERSION,
@@ -581,4 +582,3 @@ router.get(
 );
 
 module.exports = router;
-        
