@@ -50,6 +50,10 @@ data class MultiAxisVerdict(
     @SerializedName("algorithm_versions_used")
     val algorithmVersionsUsed: Map<String, String> = emptyMap(),
 
+    // ── Step 7.2: Policy version used for verification ──
+    @SerializedName("policy_version")
+    val policyVersion: String? = null,
+
     // Warnings (list of warning messages)
     @SerializedName("warnings")
     val warnings: List<String> = emptyList(),
