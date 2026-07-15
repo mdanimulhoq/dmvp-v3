@@ -21,6 +21,7 @@ import com.google.gson.annotations.SerializedName
  * Contains perceptual hash, difference hash, block hash, and optional features.
  *
  * ── Step 4.2: Added durationMs and fps fields for video support ──
+ * ── Step 4.7: Added width, height, codec fields for transformation detection ──
  */
 data class RobustFingerprint(
     // Perceptual hash (binary or hex string)
@@ -61,7 +62,19 @@ data class RobustFingerprint(
 
     // ── Step 4.2: Video frame rate (fps) ──
     @SerializedName("fps")
-    val fps: Double? = null
+    val fps: Double? = null,
+
+    // ── Step 4.7: Image/Video width for transformation detection ──
+    @SerializedName("width")
+    val width: Int? = null,
+
+    // ── Step 4.7: Image/Video height for transformation detection ──
+    @SerializedName("height")
+    val height: Int? = null,
+
+    // ── Step 4.7: Codec for transcode detection ──
+    @SerializedName("codec")
+    val codec: String? = null
 )
 
 /**
