@@ -131,6 +131,8 @@ object FingerprintUtils {
      * Extracts keyframes at regular intervals and computes fingerprints for each.
      * Also computes an audio fingerprint (placeholder) and motion summary (placeholder).
      *
+     * ── Step 4.2: Added durationMs and fps extraction ──
+     *
      * @param filePath Path to the video file.
      * @param maxKeyframes Maximum number of keyframes to extract (default 10).
      * @param algorithmVersion Version of the algorithm.
@@ -152,6 +154,21 @@ object FingerprintUtils {
                 Timber.w("Video duration is zero or invalid")
                 retriever.release()
                 return null
+            }
+
+            // ── Step 4.2: Extract FPS from video metadata ──
+            val fpsString = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_CAPTURE_FRAMERATE)
+            var fps: Double? = fpsString?.toDoubleOrNull()
+
+            // Fallback: calculate fps from frame count and duration if available
+            if (fps == null || fps <= 0) {
+                val frameCountString = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)
+                if (frameCountString != null && durationMs > 0) {
+                    val frameCount = frameCountString.toLongOrNull()
+                    if (frameCount != null && frameCount > 0) {
+                        fps = (frameCount * 1000.0) / durationMs
+                    }
+                }
             }
 
             // Extract keyframes
@@ -183,7 +200,7 @@ object FingerprintUtils {
             val primaryFingerprint = keyframes.firstOrNull()?.fingerprint
             val phash = primaryFingerprint?.phash ?: ""
 
-            // Build the fingerprint object with keyframes
+            // ── Step 4.2: Build the fingerprint object with keyframes, duration and fps ──
             RobustFingerprint(
                 phash = phash,
                 dhash = null,
@@ -192,7 +209,9 @@ object FingerprintUtils {
                 embedding = null,
                 keyframes = keyframes,
                 audioFingerprint = null, // Not implemented
-                motionSummary = null
+                motionSummary = null,
+                durationMs = durationMs,  // ── Step 4.2: Add duration ──
+                fps = fps                 // ── Step 4.2: Add fps ──
             )
         } catch (e: Exception) {
             Timber.e(e, "Failed to generate video fingerprint")
