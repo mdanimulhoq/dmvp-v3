@@ -674,6 +674,21 @@ private fun ExpandedVerdictDetails(verdict: MultiAxisVerdict) {
             }
         }
 
+        // ── Step 7.2: Policy version ──
+        verdict.policyVersion?.let { policyVersion ->
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Policy Version",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+            Text(
+                text = policyVersion,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+        }
+
         // Metadata
         verdict.metadata?.let { metadata ->
             if (metadata.isNotEmpty()) {
@@ -743,6 +758,8 @@ private fun VerdictCardPreview() {
                     ),
                     warnings = listOf("Fast verification mode used - reduced accuracy for similarity."),
                     algorithmVersionsUsed = mapOf("fingerprint" to "v1.0", "similarity" to "v1.0"),
+                    // ── Step 7.2: Policy version in preview ──
+                    policyVersion = "policy-v3.0.0",
                     summaryUiScore = 85
                 ),
                 mode = VerdictCardMode.STANDARD,
