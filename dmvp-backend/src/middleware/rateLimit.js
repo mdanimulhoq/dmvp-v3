@@ -191,6 +191,21 @@ const registerRateLimit = rateLimit({
   ),
 });
 
+// ── Step 5.2: Search rate limiter (60 requests per minute) ──
+
+const searchRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  keyGenerator,
+  skip: skipSuccessfulOptions,
+  handler: buildHandler(
+    'Too many search requests. Please slow down and try again later.',
+    60 * 1000
+  ),
+});
+
 // ═════════════════════════════════════════════════════════════════════════════
 // BACKWARD COMPATIBILITY: rateLimiter() factory for route files
 // ═════════════════════════════════════════════════════════════════════════════
@@ -232,5 +247,6 @@ module.exports = {
   authRateLimit,
   verifyRateLimit,
   registerRateLimit,
-  rateLimiter,        // ← ADDED: backward compatibility for route files
+  searchRateLimit,     // ── Step 5.2: Added searchRateLimit ──
+  rateLimiter,
 };
