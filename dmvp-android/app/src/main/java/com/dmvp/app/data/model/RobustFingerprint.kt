@@ -19,6 +19,8 @@ import com.google.gson.annotations.SerializedName
 /**
  * Robust fingerprint profile for a media file.
  * Contains perceptual hash, difference hash, block hash, and optional features.
+ *
+ * ── Step 4.2: Added durationMs and fps fields for video support ──
  */
 data class RobustFingerprint(
     // Perceptual hash (binary or hex string)
@@ -51,7 +53,15 @@ data class RobustFingerprint(
 
     // Motion summary vector (for video)
     @SerializedName("motionSummary")
-    val motionSummary: List<Float>? = null
+    val motionSummary: List<Float>? = null,
+
+    // ── Step 4.2: Video duration in milliseconds ──
+    @SerializedName("durationMs")
+    val durationMs: Long? = null,
+
+    // ── Step 4.2: Video frame rate (fps) ──
+    @SerializedName("fps")
+    val fps: Double? = null
 )
 
 /**
