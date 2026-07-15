@@ -44,6 +44,24 @@ function computeSHA256(input) {
   throw new TypeError('computeSHA256: input must be Buffer, string, or Readable stream');
 }
 
+// ── Step 7.5 Fix: Synchronous SHA-256 for simple string/buffer inputs ──
+/**
+ * Compute SHA-256 hash of data synchronously (for simple string/Buffer inputs).
+ *
+ * @param {Buffer|string} data - Data to hash. If string, treated as UTF-8.
+ * @returns {string} 64-character lowercase hex digest.
+ * @throws {TypeError} If input is not a Buffer or string.
+ */
+function computeSHA256Sync(data) {
+  if (typeof data === 'string') {
+    return crypto.createHash('sha256').update(data, 'utf8').digest('hex');
+  }
+  if (Buffer.isBuffer(data)) {
+    return crypto.createHash('sha256').update(data).digest('hex');
+  }
+  throw new TypeError('computeSHA256Sync: input must be Buffer or string');
+}
+
 /**
  * Compute a canonical media hash after deterministic normalization.
  *
@@ -235,6 +253,7 @@ function isHexString(str) {
 
 module.exports = {
   computeSHA256,
+  computeSHA256Sync,  // ── Step 7.5 Fix: Added for Android registration ──
   computeCanonicalMediaHash,
   hammingDistance,
   compareFingerprintProfiles,
