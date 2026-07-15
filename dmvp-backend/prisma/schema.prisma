@@ -85,6 +85,9 @@ model Device {
   nonces                      Nonce[]
   auditLogs                   AuditLog[]
   verificationRecords         VerificationRecord[]
+  // ── Step 6.2: Lineage relations ──
+  lineageAsOld                LineageTransition[] @relation("oldKey")
+  lineageAsNew                LineageTransition[] @relation("newKey")
 
   @@index([trustTier], map: "idx_devices_trust_tier")
   @@index([attestationStatus], map: "idx_devices_attestation_status")
@@ -264,6 +267,25 @@ model AuditLog {
   @@index([actorDeviceId], map: "idx_audit_logs_actor_device_id")
   @@index([createdAt], map: "idx_audit_logs_created_at")
   @@map("audit_logs")
+}
+
+// ── Step 6.2: Lineage Transition Model ──
+model LineageTransition {
+  id              String   @id @default(uuid())
+  oldDeviceKeyId  String   @map("old_device_key_id") @db.VarChar(191)
+  newDeviceKeyId  String   @map("new_device_key_id") @db.VarChar(191)
+  transitionType  String   @default("ROTATION") @map("transition_type") @db.VarChar(32)
+  signatureProof  String?  @map("signature_proof") @db.Text
+  timestamp       DateTime @default(now())
+  requestId       String?  @map("request_id") @db.VarChar(191)
+
+  // ── Step 6.2: Relations to Device ──
+  oldDevice       Device   @relation("oldKey", fields: [oldDeviceKeyId], references: [keyId], onUpdate: Cascade, onDelete: Restrict)
+  newDevice       Device   @relation("newKey", fields: [newDeviceKeyId], references: [keyId], onUpdate: Cascade, onDelete: Restrict)
+
+  @@index([oldDeviceKeyId], map: "idx_lineage_old_key")
+  @@index([newDeviceKeyId], map: "idx_lineage_new_key")
+  @@map("lineage_transitions")
 }
 
 // ═══════════════════════════════════════════════════════
