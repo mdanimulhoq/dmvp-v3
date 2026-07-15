@@ -310,6 +310,13 @@ object CEEBuilder {
             // Audit reference
             val auditReference = "android-${System.currentTimeMillis()}-${UUID.randomUUID().toString().take(8)}"
 
+            // ── Step 4.3: Set fingerprint algorithm version ──
+            val fingerprintAlgorithmVersions = FingerprintAlgorithmVersions(
+                fingerprint = "phash-dct-v1",
+                similarity = "hamming-v1",
+                normalization = "jpeg-baseline-v1"
+            )
+
             // Build the CEE without signature
             val ceeUnsigned = CEE(
                 protocolVersion = PROTOCOL_VERSION,
@@ -318,11 +325,7 @@ object CEEBuilder {
                 sha256Original = sha256Original,
                 canonicalMediaHash = canonicalMediaHash,
                 robustFingerprintProfile = robustFingerprint,
-                fingerprintAlgorithmVersions = FingerprintAlgorithmVersions(
-                    fingerprint = "v1.0",
-                    similarity = "v1.0",
-                    normalization = "v1.0"
-                ),
+                fingerprintAlgorithmVersions = fingerprintAlgorithmVersions,
                 signerDeviceKeyId = signerDeviceKeyId,
                 signerPublicKeyReference = signerPublicKeyRef,
                 signatureAlgorithm = SIGNATURE_ALGORITHM,
