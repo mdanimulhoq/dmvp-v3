@@ -139,19 +139,46 @@ router.post(
           signerDeviceKeyId: exactMatch.signerDeviceKeyId,
         };
 
-        // Provenance check
+        // ── Step 4.6: Provenance + Evidence Quality Composite Score ──────
         if (exactMatch.signerDevice) {
           trustTier = exactMatch.signerDevice.trustTier;
-          
+
           if (exactMatch.signerDevice.revokedAt) {
             provenanceVerdict = 'NO_TRUSTED_PROVENANCE';
-            evidenceQuality = 'LOW';
+            evidenceQuality = 'LOW_EVIDENTIARY_STRENGTH';
           } else if (exactMatch.signerDevice.attestationStatus === 'VALID') {
             provenanceVerdict = 'SIGNED_TRUSTED_DEVICE';
-            evidenceQuality = trustTier === 'TIER_A' ? 'HIGH_EVIDENTIARY_STRENGTH' : 'MODERATE';
           } else {
             provenanceVerdict = 'ATTESTATION_MISSING';
-            evidenceQuality = 'MODERATE';
+          }
+
+          // Evidence Quality Composite Score
+          let qualityScore = 0;
+          const tierScores = { TIER_A: 3, TIER_B: 2, TIER_C: 1, TIER_D: 0 };
+          qualityScore += tierScores[trustTier] || 0;
+
+          if (exactMatch.trustedTimestampTokenReference) {
+            qualityScore += 2;
+          } else if (exactMatch.registrationServerTime) {
+            qualityScore += 1;
+          }
+
+          const algoV = exactMatch.fingerprintAlgorithmVersions || {};
+          if (algoV.fingerprint === 'phash-dct-v1') {
+            qualityScore += 1;
+          }
+
+          if (qualityScore >= 5) {
+            evidenceQuality = 'HIGH_EVIDENTIARY_STRENGTH';
+          } else if (qualityScore >= 3) {
+            evidenceQuality = 'MODERATE_EVIDENTIARY_STRENGTH';
+          } else {
+            evidenceQuality = 'LOW_EVIDENTIARY_STRENGTH';
+          }
+
+          // Revoked always overrides to LOW
+          if (exactMatch.signerDevice.revokedAt) {
+            evidenceQuality = 'LOW_EVIDENTIARY_STRENGTH';
           }
         }
       }
@@ -223,6 +250,19 @@ router.post(
           fingerprint: "phash-dct-v1",
           similarity: "hamming-v1",
           normalization: "jpeg-baseline-v1"
+        },
+        evidence_quality_score: {
+          tier: trustTier,
+          tier_score: { TIER_A: 3, TIER_B: 2, TIER_C: 1, TIER_D: 0 }[trustTier] || 0,
+          timestamp: exactMatch?.trustedTimestampTokenReference ? 'trusted' : exactMatch?.registrationServerTime ? 'server' : 'none',
+          algo_current: exactMatch?.fingerprintAlgorithmVersions?.fingerprint === 'phash-dct-v1',
+          total_score: (function() {
+            const tierScore = { TIER_A: 3, TIER_B: 2, TIER_C: 1, TIER_D: 0 }[trustTier] || 0;
+            const timestampScore = exactMatch?.trustedTimestampTokenReference ? 2 : exactMatch?.registrationServerTime ? 1 : 0;
+            const algoScore = exactMatch?.fingerprintAlgorithmVersions?.fingerprint === 'phash-dct-v1' ? 1 : 0;
+            return tierScore + timestampScore + algoScore;
+          })(),
+          max_score: 6
         },
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
