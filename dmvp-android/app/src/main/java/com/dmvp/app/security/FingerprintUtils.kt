@@ -112,13 +112,16 @@ object FingerprintUtils {
             // Block hash (simplified: divide into blocks and compute average)
             val blockHash = computeBlockHash(bitmap)
 
-            // Build the fingerprint object
+            // ── Step 4.7: Build fingerprint with width and height ──
             RobustFingerprint(
                 phash = phash,
                 dhash = dhash,
                 blockHash = blockHash,
                 localFeatures = null, // Not implemented for MVP
-                embedding = null
+                embedding = null,
+                width = bitmap.width,     // ── Step 4.7: Add width ──
+                height = bitmap.height,   // ── Step 4.7: Add height ──
+                codec = null              // ── Step 4.7: Image has no codec ──
             )
         } catch (e: Exception) {
             Timber.e(e, "Failed to generate image fingerprint from bitmap")
@@ -132,6 +135,7 @@ object FingerprintUtils {
      * Also computes an audio fingerprint (placeholder) and motion summary (placeholder).
      *
      * ── Step 4.2: Added durationMs and fps extraction ──
+     * ── Step 4.7: Added width, height, codec extraction ──
      *
      * @param filePath Path to the video file.
      * @param maxKeyframes Maximum number of keyframes to extract (default 10).
@@ -171,6 +175,15 @@ object FingerprintUtils {
                 }
             }
 
+            // ── Step 4.7: Extract video metadata for transformation detection ──
+            val widthStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)
+            val heightStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)
+            val codecStr = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_MIMETYPE)
+
+            val width = widthStr?.toIntOrNull()
+            val height = heightStr?.toIntOrNull()
+            val codec = codecStr
+
             // Extract keyframes
             val keyframes = mutableListOf<KeyframeFingerprint>()
             val interval = if (maxKeyframes > 0) durationMs / maxKeyframes else durationMs
@@ -200,7 +213,7 @@ object FingerprintUtils {
             val primaryFingerprint = keyframes.firstOrNull()?.fingerprint
             val phash = primaryFingerprint?.phash ?: ""
 
-            // ── Step 4.2: Build the fingerprint object with keyframes, duration and fps ──
+            // ── Step 4.2 + 4.7: Build the fingerprint object with all metadata ──
             RobustFingerprint(
                 phash = phash,
                 dhash = null,
@@ -210,8 +223,11 @@ object FingerprintUtils {
                 keyframes = keyframes,
                 audioFingerprint = null, // Not implemented
                 motionSummary = null,
-                durationMs = durationMs,  // ── Step 4.2: Add duration ──
-                fps = fps                 // ── Step 4.2: Add fps ──
+                durationMs = durationMs,      // ── Step 4.2: Add duration ──
+                fps = fps,                    // ── Step 4.2: Add fps ──
+                width = width,                // ── Step 4.7: Add width ──
+                height = height,              // ── Step 4.7: Add height ──
+                codec = codec                 // ── Step 4.7: Add codec ──
             )
         } catch (e: Exception) {
             Timber.e(e, "Failed to generate video fingerprint")
@@ -340,7 +356,11 @@ object FingerprintUtils {
     fun generateFingerprintFromBytes(imageData: ByteArray, mediaType: String, algorithmVersion: String = "v1.0"): RobustFingerprint? {
         return if (mediaType.lowercase() == "image") {
             val bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
-            if (bitmap != null) generateImageFingerprint(bitmap, algorithmVersion) else null
+            if (bitmap != null) {
+                generateImageFingerprint(bitmap, algorithmVersion)
+            } else {
+                null
+            }
         } else {
             // For video, we would need to decode from bytes; not implemented for MVP.
             // Could use MediaMetadataRetriever with a file or URI, but bytes to file is inefficient.
