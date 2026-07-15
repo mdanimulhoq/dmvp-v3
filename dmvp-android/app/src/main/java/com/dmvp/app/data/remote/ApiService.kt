@@ -17,6 +17,7 @@ interface ApiService {
         @Header("X-Nonce") nonce: String,
         @Header("X-Timestamp") timestamp: String,
         @Header("X-Policy-Version") policyVersion: String? = null,
+        @Header("X-DMVP-Device-Key-Id") deviceKeyId: String,
         @Body cee: CEE
     ): ApiResponse<EvidenceRecord>
 
