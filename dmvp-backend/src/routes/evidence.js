@@ -33,6 +33,9 @@ const {
 // ── Step 3.3: Import signature verification middleware ─────────────────────
 const { verifySignature } = require('../middleware/signatureVerify');
 
+// ── Step 6.1: Import timestamp service ─────────────────────────────────────
+const { getTimestamp } = require('../utils/timestampService');
+
 const POLICY_VERSION = process.env.VERIFICATION_POLICY_VERSION || 'policy-v3.0.0';
 const PROTOCOL_VERSION = process.env.DMVP_PROTOCOL_VERSION || 'dmvp-v3.0.0';
 
@@ -174,6 +177,9 @@ router.post(
       const geolocationLat = pick(body, 'geolocation_lat', 'geolocationLat', geolocationClaim?.lat);
       const geolocationLng = pick(body, 'geolocation_lng', 'geolocationLng', geolocationClaim?.lng);
 
+      // ── Step 6.1: Extract timestamp mode ─────────────────────────────────
+      const timestampMode = pick(body, 'timestamp_mode', 'timestampMode', 'standard');
+
       // ── Validation ────────────────────────────────────────────────────────
       if (!evidenceId || !isValidUUID(evidenceId)) {
         return res.status(400).json(
@@ -302,6 +308,16 @@ router.post(
         );
       }
 
+      // ── Step 6.1: Get timestamp based on mode ──────────────────────────
+      let finalTimestampRef = trustedTimestampTokenReference;
+      let finalTimestampMode = timestampMode || 'standard';
+
+      if (!finalTimestampRef && (finalTimestampMode === 'enhanced' || finalTimestampMode === 'high_assurance')) {
+        const tsResult = await getTimestamp(sha256Original, finalTimestampMode);
+        finalTimestampRef = tsResult.tokenReference;
+        finalTimestampMode = tsResult.mode; // May fallback to 'standard'
+      }
+
       // ── Create evidence record ────────────────────────────────────────────
       const evidence = await prisma.evidence.create({
         data: {
@@ -316,7 +332,8 @@ router.post(
           signerPublicKeyReference: signerPublicKeyReference || signerDeviceKeyId,
           signatureAlgorithm: signatureAlgorithm || 'SHA256withECDSA',
           deviceAttestationSummary: deviceAttestationSummary || null,
-          trustedTimestampTokenReference: trustedTimestampTokenReference || null,
+          // ── Step 6.1: Use finalTimestampRef ──────────────────────────────
+          trustedTimestampTokenReference: finalTimestampRef || null,
           captureTimeClaim: captureTimeClaim ? new Date(captureTimeClaim) : null,
           geolocationLat: geolocationLat ? parseFloat(geolocationLat) : null,
           geolocationLng: geolocationLng ? parseFloat(geolocationLng) : null,
@@ -373,8 +390,10 @@ router.post(
         warnings.push('trusted_timestamp_token_not_available');
       }
 
+      // ── Step 6.1: Add timestamp_mode to response ────────────────────────
       const responseBody = {
         ...buildEvidenceResponse(evidence, idempotencyKey, warnings),
+        timestamp_mode: finalTimestampMode,
         request_id: req.requestId,
       };
 
