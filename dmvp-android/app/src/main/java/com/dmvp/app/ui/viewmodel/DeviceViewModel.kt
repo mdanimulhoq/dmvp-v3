@@ -70,7 +70,7 @@ class DeviceViewModel @Inject constructor(
             try {
                 _uiState.update { it.copy(isLoading = true, error = null, errorCode = null) }
 
-                val deviceKeyId = repository.getDeviceKeyId() // placeholder
+                val deviceKeyId = repository.getDeviceKeyId()
                 val publicKey = repository.getPublicKey()
                 val trustTier = repository.getCachedTrustTier()
                 val isHardwareBacked = DeviceKeyManager.isHardwareBacked()
@@ -526,8 +526,9 @@ class DeviceViewModel @Inject constructor(
     }
 }
 
-private fun DMVPRepository.getDeviceKeyId(): String? = null
-private fun DMVPRepository.getPublicKey(): String? = null
+// ── Step 3.3 Fix: Remove placeholder functions ──
+// These were causing issues with device registration.
+// The actual implementations are now in DMVPRepository.
 
 fun DeviceUiState.isCurrentDeviceKey(keyId: String): Boolean = currentDeviceKeyId == keyId
 fun DeviceUiState.getTrustTierDisplay(): String = currentTrustTier ?: "Unknown"
