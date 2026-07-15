@@ -1,3 +1,5 @@
+import java.util.Properties
+
 /**
  * app/build.gradle.kts
  *
@@ -29,7 +31,7 @@ android {
             // keyPassword=your_key_password
             val keystorePropertiesFile = rootProject.file("keystore.properties")
             if (keystorePropertiesFile.exists()) {
-                val keystoreProperties = java.util.Properties().apply {
+                val keystoreProperties = Properties().apply {
                     load(keystorePropertiesFile.inputStream())
                 }
                 storeFile = file(keystoreProperties["storeFile"] as String)
@@ -63,7 +65,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
-            signingConfig = signingConfigs.getByName("release")  // ── Step 7.5 ──
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
