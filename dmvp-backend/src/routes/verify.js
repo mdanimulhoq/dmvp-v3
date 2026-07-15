@@ -460,6 +460,25 @@ router.post(
         }
       }
 
+      // ── Step 7.4: Build warnings array ──────────────────────────────────
+      const warnings = [];
+
+      // Degraded timestamp mode
+      if (exactMatch && !exactMatch.trustedTimestampTokenReference) {
+        warnings.push('timestamp_degraded');
+      }
+
+      // Software-only key (Tier C)
+      if (trustTier === 'TIER_C') {
+        warnings.push('software_only_key');
+      }
+
+      // Old algorithm version
+      const algoVersions = exactMatch?.fingerprintAlgorithmVersions || {};
+      if (algoVersions.fingerprint && algoVersions.fingerprint !== 'phash-dct-v1') {
+        warnings.push('old_algorithm_version');
+      }
+
       // ── Record verification event ─────────────────────────────────────────
       await prisma.verificationRecord.create({
         data: {
@@ -485,7 +504,7 @@ router.post(
 
       console.info(`[Verify] ${integrityVerdict} for ${sha256.substring(0, 16)}... mode=${mode}`);
 
-      // ── Step 4.3 + 4.6 + 4.7: Response ────────────────────────────────
+      // ── Step 4.3 + 4.6 + 4.7 + 7.4: Response ────────────────────────────────
       return res.status(200).json({
         integrity_verdict: integrityVerdict,
         provenance_verdict: provenanceVerdict,
@@ -494,6 +513,7 @@ router.post(
         trust_tier: trustTier,
         transformation_indicators: transformationIndicators,
         matched_evidence_list: matchedEvidenceList,
+        warnings,  // ── Step 7.4: Warnings added ──
         verification_mode: mode,
         algorithm_versions_used: {
           fingerprint: "phash-dct-v1",
@@ -561,3 +581,4 @@ router.get(
 );
 
 module.exports = router;
+        
