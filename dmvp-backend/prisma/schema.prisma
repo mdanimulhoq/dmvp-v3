@@ -258,6 +258,8 @@ model AuditLog {
   ipAddress      String?   @map("ip_address") @db.VarChar(64)
   userAgent      String?   @map("user_agent") @db.VarChar(512)
   details        Json?
+  prevHash       String?   @map("prev_hash") @db.VarChar(64)      // ← NEW: Step 7.1
+  eventHash      String?   @map("event_hash") @db.VarChar(64)     // ← NEW: Step 7.1
   createdAt      DateTime  @default(now()) @map("created_at")
 
   actorDevice    Device?   @relation(fields: [actorDeviceId], references: [deviceId], onUpdate: Cascade, onDelete: SetNull)
