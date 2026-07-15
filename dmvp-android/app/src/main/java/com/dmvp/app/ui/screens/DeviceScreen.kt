@@ -304,10 +304,12 @@ fun DeviceScreen(
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        LazyColumn(
+                        // ── Step 7.5 Fix: LazyColumn → Column + forEach ──
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            items(uiState.deviceList) { deviceKey ->
+                            uiState.deviceList.forEach { deviceKey ->
                                 DeviceListItem(
                                     deviceKey = deviceKey,
                                     isCurrent = deviceKey.deviceKeyId == uiState.currentDeviceKeyId,
