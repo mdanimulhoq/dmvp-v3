@@ -63,7 +63,9 @@ class DMVPApplication : Application() {
     private fun initializeDeviceRegistration() {
         applicationScope.launch {
             try {
+                // ── Step: Debug logs added ──
                 Timber.tag(TAG).d("Auto device registration started")
+                Timber.tag(TAG).d("🔍 DEBUG: About to call getOrCreateDeviceKey()")
 
                 val repository = DMVPRepository(applicationContext)
 
