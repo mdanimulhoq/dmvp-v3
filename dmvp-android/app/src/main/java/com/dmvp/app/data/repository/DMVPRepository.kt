@@ -100,12 +100,28 @@ class DMVPRepository(private val context: Context) {
                             platform = "android"
                         )
                         // ── Step 7.5 Fix: DeviceRegistrationResponse ──
-                        val response = apiService.registerDevice(request = registrationRequest)
-                        saveDeviceKeyId(recoveredDeviceKeyId)
-                        savePublicKey(publicKey)
-                        saveTrustTier(response.trustTier)  // ← Changed from response.trustTier.name
-                        Timber.d("Existing local key registered with new device key id: $recoveredDeviceKeyId")
-                        return@withContext Result.Success(Pair(recoveredDeviceKeyId, publicKey))
+                        // ── Step: Debug logs added ──
+                        Timber.d("🔍 DEBUG: Registering device with key_id=$recoveredDeviceKeyId")
+                        Timber.d("🔍 DEBUG: Public key length=${publicKey.length}")
+
+                        try {
+                            val response = apiService.registerDevice(request = registrationRequest)
+                            Timber.d("✅ DEBUG: Registration SUCCESS: $response")
+                            saveDeviceKeyId(recoveredDeviceKeyId)
+                            savePublicKey(publicKey)
+                            saveTrustTier(response.trustTier)
+                            Timber.d("Existing local key registered with new device key id: $recoveredDeviceKeyId")
+                            return@withContext Result.Success(Pair(recoveredDeviceKeyId, publicKey))
+                        } catch (e: Exception) {
+                            Timber.e("❌ DEBUG: Registration FAILED: ${e.message}")
+                            Timber.e("❌ DEBUG: Exception type: ${e::class.simpleName}")
+                            if (e is retrofit2.HttpException) {
+                                Timber.e("❌ DEBUG: HTTP ${e.code()} - ${e.message()}")
+                                val errorBody = e.response()?.errorBody()?.string()
+                                Timber.e("❌ DEBUG: Error body: $errorBody")
+                            }
+                            throw e
+                        }
                     }
                 }
 
@@ -135,13 +151,28 @@ class DMVPRepository(private val context: Context) {
 
                 // ── Step 3.3 Fix: Register device without auth header ──
                 // ── Step 7.5 Fix: DeviceRegistrationResponse ──
-                val response = apiService.registerDevice(
-                    request = registrationRequest
-                )
-                // Trust tier will be assigned by server, but we can cache it
-                saveTrustTier(response.trustTier)  // ← Changed from response.trustTier.name
+                // ── Step: Debug logs added ──
+                Timber.d("🔍 DEBUG: Registering device with key_id=$deviceKeyId")
+                Timber.d("🔍 DEBUG: Public key length=${publicKeyBase64.length}")
 
-                Result.Success(Pair(deviceKeyId, publicKeyBase64))
+                try {
+                    val response = apiService.registerDevice(
+                        request = registrationRequest
+                    )
+                    Timber.d("✅ DEBUG: Registration SUCCESS: $response")
+                    // Trust tier will be assigned by server, but we can cache it
+                    saveTrustTier(response.trustTier)
+                    Result.Success(Pair(deviceKeyId, publicKeyBase64))
+                } catch (e: Exception) {
+                    Timber.e("❌ DEBUG: Registration FAILED: ${e.message}")
+                    Timber.e("❌ DEBUG: Exception type: ${e::class.simpleName}")
+                    if (e is retrofit2.HttpException) {
+                        Timber.e("❌ DEBUG: HTTP ${e.code()} - ${e.message()}")
+                        val errorBody = e.response()?.errorBody()?.string()
+                        Timber.e("❌ DEBUG: Error body: $errorBody")
+                    }
+                    throw e
+                }
             } catch (e: Exception) {
                 Timber.e(e, "Failed to get or create device key")
                 Result.Error(exception = e, message = e.message)
