@@ -343,23 +343,15 @@ class DMVPRepository(private val context: Context) {
                         message = "Server returned empty response"
                     )
                 }
+            } catch (e: retrofit2.HttpException) {
+                val errorBody = e.response()?.errorBody()?.string()
+                android.util.Log.e("DMVP_DEBUG", "Evidence Registration Failed! HTTP Code: ${e.code()}")
+                android.util.Log.e("DMVP_DEBUG", "Backend Error Body: $errorBody")
+                
+                Result.Error(e.code().toString(), e.message(), e)
             } catch (e: Exception) {
-                Timber.e(e, "Registration failed")
-                
-                // ── Advance AI Fix: Log backend error body ──
-                if (e is retrofit2.HttpException) {
-                    val errorBody = e.response()?.errorBody()?.string()
-                    Timber.e("BACKEND_ERROR_BODY: ${e.response()?.errorBody()?.string()}")
-                }
-                
-                when (e) {
-                    is ApiException -> Result.Error(
-                        exception = e,
-                        errorCode = e.errorCode,
-                        message = e.message
-                    )
-                    else -> Result.Error(exception = e, message = e.message)
-                }
+                android.util.Log.e("DMVP_DEBUG", "Unknown Error: ${e.message}")
+                Result.Error("UNKNOWN", e.message ?: "Unknown error", e)
             }
         }
     }
