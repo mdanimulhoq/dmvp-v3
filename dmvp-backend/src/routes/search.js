@@ -16,7 +16,8 @@
 const express = require('express');
 const router = express.Router();
 
-const { authenticate } = require('../middleware/auth');
+// ── Fix: Removed authenticate for public access ──
+// const { authenticate } = require('../middleware/auth');
 // ── Step 5.2: Use searchRateLimit instead of generalRateLimit ──
 const { searchRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
@@ -49,9 +50,9 @@ function isValidSHA256(str) {
 // Search service info
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Fix: Removed authenticate ──
 router.get(
   '/',
-  authenticate,
   async (req, res) => {
     return res.status(200).json({
       service: 'DMVP Search',
@@ -71,10 +72,9 @@ router.get(
 // Search for related or similar evidence (staged matching)
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ── Step 5.2: Use searchRateLimit instead of generalRateLimit ──
+// ── Fix: Removed authenticate ──
 router.post(
   '/',
-  authenticate,
   searchRateLimit,
   async (req, res, next) => {
     try {
@@ -213,9 +213,9 @@ router.post(
 // Get related evidence for a specific evidence record
 // ─────────────────────────────────────────────────────────────────────────────
 
+// ── Fix: Removed authenticate ──
 router.get(
   '/:evidenceId/related',
-  authenticate,
   async (req, res, next) => {
     try {
       const { evidenceId } = req.params;
