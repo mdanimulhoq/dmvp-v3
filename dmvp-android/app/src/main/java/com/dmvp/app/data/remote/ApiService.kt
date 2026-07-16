@@ -69,10 +69,11 @@ interface ApiService {
     // Device Lifecycle Endpoints
     // ============================
 
+    // ── Step 7.5 Fix: DeviceRegistrationResponse instead of DeviceKey ──
     @POST("devices/register")
     suspend fun registerDevice(
         @Body request: DeviceRegistrationRequest
-    ): DeviceKey
+    ): DeviceRegistrationResponse
 
     @POST("devices/rotate/{device_key_id}")
     suspend fun rotateDeviceKey(
