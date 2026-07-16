@@ -12,8 +12,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    // ── Step: Replace ksp with kapt ──
-    id("org.jetbrains.kotlin.kapt")
+    // ── Step: Replace kapt with ksp ──
+    id("com.google.devtools.ksp")
     id("com.google.dagger.hilt.android")
 }
 
@@ -100,10 +100,10 @@ android {
     }
 }
 
-// ── Step: kapt configuration ──
-kapt {
-    correctErrorTypes = true
-}
+// ── Step: kapt configuration REMOVED (ksp doesn't need this) ──
+// kapt {
+//     correctErrorTypes = true
+// }
 
 dependencies {
     // Core Android
@@ -137,9 +137,9 @@ dependencies {
     // Needed for ListenableFuture.await() used with CameraX's ProcessCameraProvider
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-guava:1.7.3")
 
-    // ── Step: Dagger Hilt with kapt ──
+    // ── Step: Dagger Hilt with ksp ──
     implementation("com.google.dagger:hilt-android:2.52")
-    kapt("com.google.dagger:hilt-compiler:2.52")
+    ksp("com.google.dagger:hilt-compiler:2.52")  // ← kapt → ksp
     implementation("androidx.hilt:hilt-navigation-compose:1.1.0")
 
     // CameraX
