@@ -144,6 +144,9 @@ router.post(
   registerRateLimit,
   verifySignature,
   async (req, res, next) => {
+    // ── DEBUG: Log incoming headers ──
+    console.log('[EVIDENCE] POST / hit, headers:', Object.keys(req.headers).filter(k => k.startsWith('x-')));
+
     try {
       // ── Step 3.3: Use pick() for snake_case support ─────────────────────
       const body = req.body || {};
