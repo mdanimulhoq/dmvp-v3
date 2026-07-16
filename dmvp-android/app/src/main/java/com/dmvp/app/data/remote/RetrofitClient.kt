@@ -29,7 +29,7 @@ class ApiException(
  */
 object RetrofitClient {
 
-    private const val BASE_URL = "https://dmvp-v3.onrender.com/api/v1/"
+    private const val BASE_URL = "https://dmvp-v3-1.onrender.com/api/v1/"
 
     private var retrofit: Retrofit? = null
     private var apiService: ApiService? = null
