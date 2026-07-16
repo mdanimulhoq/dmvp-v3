@@ -18,6 +18,20 @@ function buildError(status, code, message, detail, req) {
   };
 }
 
+// ── Step: mapDevice function for consistent device response ──
+function mapDevice(d) {
+  return {
+    id: d.deviceId,
+    device_key_id: d.keyId,
+    public_key: d.publicKeyReference,
+    trust_tier: d.trustTier,
+    lifecycle_state: d.revokedAt ? 'REVOKED' : 'ACTIVE',
+    revoked_at: d.revokedAt?.toISOString?.() || null,
+    created_at: d.createdAt?.toISOString?.() || null,
+    updated_at: d.updatedAt?.toISOString?.() || null
+  };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // POST /devices/register
 // ─────────────────────────────────────────────────────────────────────────────
@@ -291,6 +305,8 @@ router.get('/:device_key_id', authenticate, async (req, res, next) => {
         revokedAt: true,
         createdAt: true,
         lastSeenAt: true,
+        publicKeyReference: true,
+        updatedAt: true,
       },
     });
 
@@ -298,7 +314,7 @@ router.get('/:device_key_id', authenticate, async (req, res, next) => {
       return res.status(404).json(buildError(404, 'DEVICE_NOT_FOUND', 'Not found', null, req));
     }
 
-    res.status(200).json(device);
+    res.status(200).json(mapDevice(device));
   } catch (e) {
     next(e);
   }
@@ -326,7 +342,12 @@ router.get('/', async (req, res, next) => {
       prisma.device.count({ where }),
     ]);
     
-    res.json({ items, total, page: parseInt(page), limit: parseInt(limit) });
+    res.json({
+      items: items.map(mapDevice),
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit)
+    });
   } catch (e) {
     next(e);
   }
