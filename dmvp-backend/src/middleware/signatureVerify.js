@@ -344,6 +344,9 @@ async function loadTrustedDevice(deviceKeyId) {
  * @param {import('express').NextFunction} next
  */
 async function verifySignature(req, res, next) {
+  // ── DEBUG: Log incoming headers ──
+  console.log('[DEBUG] Headers:', req.headers);
+
   const signatureBase64 = readHeader(req, [
     SIGNATURE_HEADER,
     LEGACY_SIGNATURE_HEADER,
