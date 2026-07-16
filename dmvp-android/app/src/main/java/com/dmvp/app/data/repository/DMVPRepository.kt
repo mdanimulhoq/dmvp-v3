@@ -99,10 +99,11 @@ class DMVPRepository(private val context: Context) {
                             attestationSummary = buildAttestationSummary(emptyList()),
                             platform = "android"
                         )
+                        // ── Step 7.5 Fix: DeviceRegistrationResponse ──
                         val response = apiService.registerDevice(request = registrationRequest)
                         saveDeviceKeyId(recoveredDeviceKeyId)
                         savePublicKey(publicKey)
-                        saveTrustTier(response.trustTier.name)
+                        saveTrustTier(response.trustTier)  // ← Changed from response.trustTier.name
                         Timber.d("Existing local key registered with new device key id: $recoveredDeviceKeyId")
                         return@withContext Result.Success(Pair(recoveredDeviceKeyId, publicKey))
                     }
@@ -133,11 +134,12 @@ class DMVPRepository(private val context: Context) {
                 savePublicKey(publicKeyBase64)
 
                 // ── Step 3.3 Fix: Register device without auth header ──
+                // ── Step 7.5 Fix: DeviceRegistrationResponse ──
                 val response = apiService.registerDevice(
                     request = registrationRequest
                 )
                 // Trust tier will be assigned by server, but we can cache it
-                saveTrustTier(response.trustTier.name)
+                saveTrustTier(response.trustTier)  // ← Changed from response.trustTier.name
 
                 Result.Success(Pair(deviceKeyId, publicKeyBase64))
             } catch (e: Exception) {
