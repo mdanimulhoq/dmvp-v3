@@ -84,6 +84,11 @@ class DMVPApplication : Application() {
                             result.exception,
                             "Auto device registration failed: errorCode=${result.errorCode} message=${result.message}"
                         )
+                        // ── NEW: Log backend error body ──
+                        if (result.exception is retrofit2.HttpException) {
+                            val errorBody = result.exception.response()?.errorBody()?.string()
+                            Timber.tag(TAG).e("BACKEND_ERROR_BODY", "Backend said: $errorBody")
+                        }
                     }
                 }
             } catch (e: Exception) {
