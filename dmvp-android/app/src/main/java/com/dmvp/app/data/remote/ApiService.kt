@@ -182,16 +182,16 @@ interface ApiService {
 // Request/Response DTOs
 // ================================
 
-// ── Step 6.1: Added timestamp_mode field ──
+// ── Step: VerificationRequest field names camelCase ──
 data class VerificationRequest(
     @SerializedName("sha256") val sha256: String,
-    @SerializedName("canonical_media_hash") val canonicalMediaHash: String? = null,
-    @SerializedName("media_type") val mediaType: String,
-    @SerializedName("robust_fingerprint_profile") val robustFingerprintProfile: RobustFingerprint? = null,
-    @SerializedName("verification_mode") val verificationMode: String = "standard",
-    @SerializedName("signer_device_key_id") val signerDeviceKeyId: String? = null,
-    @SerializedName("timestamp_info") val timestampInfo: Map<String, Any>? = null,
-    @SerializedName("timestamp_mode") val timestampMode: String = "standard"
+    @SerializedName("canonicalMediaHash") val canonicalMediaHash: String? = null,
+    @SerializedName("mediaType") val mediaType: String,
+    @SerializedName("fingerprintProfile") val robustFingerprintProfile: RobustFingerprint? = null,
+    @SerializedName("verificationMode") val verificationMode: String = "standard",
+    @SerializedName("signerDeviceKeyId") val signerDeviceKeyId: String? = null,
+    @SerializedName("timestampInfo") val timestampInfo: Map<String, Any>? = null,
+    @SerializedName("timestampMode") val timestampMode: String = "standard"
 )
 
 data class SearchRequest(
