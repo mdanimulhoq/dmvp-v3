@@ -45,7 +45,13 @@ router.post('/register', authRateLimit, async (req, res, next) => {
 
     const device = await prisma.device.upsert({
       where: { keyId: key_id },
+      // ── Fix: Update publicKey and other fields on upsert ──
       update: {
+        publicKeyReference: public_key,
+        publicKeyPem: public_key_pem || public_key,
+        platform: (platform || 'ANDROID').toUpperCase(),
+        hardwareBacked: hardware_backed || false,
+        attestationSummary: attestation_summary || null,
         lastSeenAt: new Date(),
         appVersion: app_version || undefined,
         osVersion: os_version || undefined
@@ -302,7 +308,8 @@ router.get('/:device_key_id', authenticate, async (req, res, next) => {
 // GET /devices
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get('/', authenticate, async (req, res, next) => {
+// ── Fix: Removed authenticate for public access ──
+router.get('/', async (req, res, next) => {
   try {
     const { trust_tier, lifecycle_state, page = 1, limit = 20 } = req.query;
     const where = {};
