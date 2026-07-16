@@ -345,6 +345,13 @@ class DMVPRepository(private val context: Context) {
                 }
             } catch (e: Exception) {
                 Timber.e(e, "Registration failed")
+                
+                // ── NEW: Log backend error body ──
+                if (e is retrofit2.HttpException) {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    Timber.e("BACKEND_ERROR_BODY", "Evidence registration error: $errorBody")
+                }
+                
                 when (e) {
                     is ApiException -> Result.Error(
                         exception = e,
