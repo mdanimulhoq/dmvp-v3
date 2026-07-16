@@ -82,9 +82,11 @@ data class DeviceKey(
 
 /**
  * Request body for device registration.
+ * 
+ * ── Step 7.5 Fix: device_key_id → key_id ──
  */
 data class DeviceRegistrationRequest(
-    @SerializedName("device_key_id")
+    @SerializedName("key_id")  // ← Changed from device_key_id
     val deviceKeyId: String,
 
     @SerializedName("public_key")
@@ -95,6 +97,16 @@ data class DeviceRegistrationRequest(
 
     @SerializedName("platform")
     val platform: String = "android"
+)
+
+/**
+ * ── Step 7.5 Fix: Device registration response ──
+ */
+data class DeviceRegistrationResponse(
+    @SerializedName("device_id") val deviceId: String,
+    @SerializedName("key_id") val keyId: String,
+    @SerializedName("trust_tier") val trustTier: String,
+    @SerializedName("registered") val registered: Boolean
 )
 
 /**
