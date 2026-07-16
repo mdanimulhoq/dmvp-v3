@@ -53,7 +53,7 @@ android {
         buildConfigField(
             "String",
             "DMVP_API_BASE_URL",
-            "\"https://dmvp-v3.onrender.com\""
+            "\"https://dmvp-v3-1.onrender.com\""
         )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
