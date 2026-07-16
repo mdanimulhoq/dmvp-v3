@@ -298,4 +298,31 @@ router.get('/:device_key_id', authenticate, async (req, res, next) => {
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// GET /devices
+// ─────────────────────────────────────────────────────────────────────────────
+
+router.get('/', authenticate, async (req, res, next) => {
+  try {
+    const { trust_tier, lifecycle_state, page = 1, limit = 20 } = req.query;
+    const where = {};
+    if (trust_tier) where.trustTier = trust_tier.toUpperCase();
+    
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const [items, total] = await Promise.all([
+      prisma.device.findMany({
+        where,
+        skip,
+        take: parseInt(limit),
+        orderBy: { createdAt: 'desc' },
+      }),
+      prisma.device.count({ where }),
+    ]);
+    
+    res.json({ items, total, page: parseInt(page), limit: parseInt(limit) });
+  } catch (e) {
+    next(e);
+  }
+});
+
 module.exports = router;
