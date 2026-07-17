@@ -1,6 +1,7 @@
 'use strict';
 const express = require('express');
 const router = express.Router();
+// ── Fix: authenticate removed from GET /:id ──
 const { authenticate } = require('../middleware/auth');
 const { authRateLimit } = require('../middleware/rateLimit');
 const { prisma } = require('../config/database');
@@ -293,7 +294,8 @@ router.post('/recover', authenticate, authRateLimit, async (req, res, next) => {
 // GET /devices/:device_key_id
 // ─────────────────────────────────────────────────────────────────────────────
 
-router.get('/:device_key_id', authenticate, async (req, res, next) => {
+// ── Fix: Removed authenticate for public access ──
+router.get('/:device_key_id', async (req, res, next) => {
   try {
     const device = await prisma.device.findUnique({
       where: { keyId: req.params.device_key_id },
