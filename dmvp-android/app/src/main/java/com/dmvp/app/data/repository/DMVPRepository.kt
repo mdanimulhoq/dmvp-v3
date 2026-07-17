@@ -71,6 +71,8 @@ class DMVPRepository(private val context: Context) {
      * If the key exists in Keystore, return it.
      * Otherwise, generate a new key and register it with the server.
      * Returns the device key ID and public key.
+     * 
+     * ── Fix: Always re-sync with backend even if local key exists ──
      */
     suspend fun getOrCreateDeviceKey(): Result<Pair<String, String>> {
         return withContext(Dispatchers.IO) {
@@ -80,47 +82,41 @@ class DMVPRepository(private val context: Context) {
                     // Key exists, get public key
                     val publicKey = DeviceKeyManager.getPublicKey()
                     if (publicKey != null) {
-                        val storedDeviceKeyId = getDeviceKeyId()
-                        if (storedDeviceKeyId != null) {
-                            RetrofitClient.setDeviceKeyId(storedDeviceKeyId)
-                            return@withContext Result.Success(Pair(storedDeviceKeyId, publicKey))
+                        var deviceKeyId = getDeviceKeyId()
+                        
+                        // ── Fix: Always re-sync with backend ──
+                        if (deviceKeyId == null) {
+                            deviceKeyId = generateDeviceKeyId()
                         }
-
-                        /*
-                         * A failed previous run can leave a Keystore key without a saved
-                         * device_key_id. Do not invent an unregistered id and continue:
-                         * evidence registration will fail when the backend verifies the
-                         * signing device. Register the existing public key first.
-                         */
-                        val recoveredDeviceKeyId = generateDeviceKeyId()
+                        
+                        // Always register/update device with backend
                         val registrationRequest = DeviceRegistrationRequest(
-                            deviceKeyId = recoveredDeviceKeyId,
+                            deviceKeyId = deviceKeyId,
                             publicKey = publicKey,
                             attestationSummary = buildAttestationSummary(emptyList()),
                             platform = "android"
                         )
-                        // ── Step 7.5 Fix: DeviceRegistrationResponse ──
-                        // ── Step: Debug logs added ──
-                        Timber.d("🔍 DEBUG: Registering device with key_id=$recoveredDeviceKeyId")
-                        Timber.d("🔍 DEBUG: Public key length=${publicKey.length}")
-
+                        
                         try {
+                            Timber.d("🔍 DEBUG: Re-syncing device with key_id=$deviceKeyId")
+                            Timber.d("🔍 DEBUG: Public key length=${publicKey.length}")
+                            
                             val response = apiService.registerDevice(request = registrationRequest)
-                            Timber.d("✅ DEBUG: Registration SUCCESS: $response")
-                            saveDeviceKeyId(recoveredDeviceKeyId)
+                            Timber.d("✅ DEBUG: Device re-sync SUCCESS: $response")
+                            saveDeviceKeyId(deviceKeyId)
                             savePublicKey(publicKey)
                             saveTrustTier(response.trustTier)
-                            Timber.d("Existing local key registered with new device key id: $recoveredDeviceKeyId")
-                            return@withContext Result.Success(Pair(recoveredDeviceKeyId, publicKey))
+                            RetrofitClient.setDeviceKeyId(deviceKeyId)
+                            Timber.d("Device re-synced with backend: $deviceKeyId")
+                            return@withContext Result.Success(Pair(deviceKeyId, publicKey))
                         } catch (e: Exception) {
-                            Timber.e("❌ DEBUG: Registration FAILED: ${e.message}")
-                            Timber.e("❌ DEBUG: Exception type: ${e::class.simpleName}")
+                            Timber.e("❌ DEBUG: Device re-sync FAILED: ${e.message}")
                             if (e is retrofit2.HttpException) {
                                 Timber.e("❌ DEBUG: HTTP ${e.code()} - ${e.message()}")
                                 val errorBody = e.response()?.errorBody()?.string()
                                 Timber.e("❌ DEBUG: Error body: $errorBody")
                             }
-                            throw e
+                            // Continue with existing logic if sync fails
                         }
                     }
                 }
