@@ -5,6 +5,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.google.gson.JsonPrimitive  // ── Step: Added for number handling ──
 
 object CanonicalJson {
 
@@ -55,6 +56,21 @@ object CanonicalJson {
                 }
 
                 sortedArray
+            }
+
+            // ── Step: Handle JsonPrimitive numbers correctly ──
+            element.isJsonPrimitive -> {
+                val p = element.asJsonPrimitive
+                if (p.isNumber) {
+                    val d = p.asDouble
+                    if (d.isFinite() && d % 1.0 == 0.0) {
+                        JsonPrimitive(d.toLong())
+                    } else {
+                        p
+                    }
+                } else {
+                    p
+                }
             }
 
             else -> element
