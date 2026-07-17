@@ -116,12 +116,7 @@ class DMVPRepository(private val context: Context) {
                                 val errorBody = e.response()?.errorBody()?.string()
                                 Timber.e("❌ DEBUG: Error body: $errorBody")
                             }
-                            // Fix: Re-sync failed - return existing local key instead of
-                            // falling through to generateDeviceKey(), which deletes the current
-                            // Keystore key. If new-key registration also fails, caller gets
-                            // "Failed to get device key".
-                            RetrofitClient.setDeviceKeyId(deviceKeyId)
-                            return@withContext Result.Success(Pair(deviceKeyId, publicKey))
+                            // Continue with existing logic if sync fails
                         }
                     }
                 }
@@ -321,16 +316,6 @@ class DMVPRepository(private val context: Context) {
                 // ── Step 3.2: Idempotency key must be a UUID ──────────────
                 // Idempotency key must be a UUID per FR-CR-08.
                 val idempotencyKey = UUID.randomUUID().toString()
-
-                // ── DEBUG: Log all signing inputs before sending ────────
-                Timber.d("🔑 [REG_DEBUG] deviceKeyId      = $deviceKeyId")
-                Timber.d("🔑 [REG_DEBUG] nonce            = $nonce")
-                Timber.d("🔑 [REG_DEBUG] timestamp        = $timestamp")
-                Timber.d("🔑 [REG_DEBUG] canonicalPayload = $canonicalPayload")
-                Timber.d("🔑 [REG_DEBUG] sha256(canonical)= ${HashUtils.sha256(canonicalPayload)}")
-                Timber.d("🔑 [REG_DEBUG] sig prefix       = ${signature.take(16)}...")
-                Timber.d("🔑 [REG_DEBUG] pubKey prefix    = ${publicKey.take(16)}... (len=${publicKey.length})")
-                // ── END DEBUG ─────────────────────────
 
                 // Send registration
                 val response = apiService.registerEvidence(
