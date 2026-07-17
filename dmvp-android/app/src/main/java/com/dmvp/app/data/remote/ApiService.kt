@@ -204,13 +204,11 @@ data class SearchRequest(
     @SerializedName("maxCandidates") val maxCandidates: Int = 100
 )
 
-// Fix: backend returns "results" (not "matched_evidence") and "similarity_verdict" (not "best_match_type").
-// Fields are nullable so Gson does not throw when a key is absent (e.g. exact-match path).
 data class SearchResponse(
-    @SerializedName("results") val matchedEvidence: List<MatchedEvidence>? = emptyList(),
-    @SerializedName("total_matches") val totalMatches: Int = 0,
-    @SerializedName("similarity_verdict") val bestMatchType: String? = null,
-    @SerializedName("best_score") val bestScore: Double = 0.0,
+    @SerializedName("matched_evidence") val matchedEvidence: List<MatchedEvidence>,
+    @SerializedName("total_matches") val totalMatches: Int,
+    @SerializedName("best_match_type") val bestMatchType: String,
+    @SerializedName("best_score") val bestScore: Double,
     @SerializedName("search_metadata") val searchMetadata: Map<String, Any>? = null
 )
 
