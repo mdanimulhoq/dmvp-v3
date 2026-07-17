@@ -450,16 +450,15 @@ async function verifySignature(req, res, next) {
     device.publicKeyPem
   );
 
-  // ── Step: 401 Debug log ──
-  console.error('[SIG_FAIL]', {
-    deviceKeyId,
-    nonce,
-    timestamp: timestampHeaderValue,
-    canonicalPayload,
-    publicKeyLen: device.publicKeyPem?.length
-  });
-
   if (!signatureValid) {
+    // ── Fix: debug log now inside the failure branch only ──
+    console.error('[SIG_FAIL]', {
+      deviceKeyId,
+      nonce,
+      timestamp: timestampHeaderValue,
+      canonicalPayload,
+      publicKeyLen: device.publicKeyPem?.length
+    });
     sendSignatureError(
       res,
       req,

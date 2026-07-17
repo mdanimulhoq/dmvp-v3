@@ -116,7 +116,12 @@ class DMVPRepository(private val context: Context) {
                                 val errorBody = e.response()?.errorBody()?.string()
                                 Timber.e("❌ DEBUG: Error body: $errorBody")
                             }
-                            // Continue with existing logic if sync fails
+                            // Fix: Re-sync failed - return existing local key instead of
+                            // falling through to generateDeviceKey(), which deletes the current
+                            // Keystore key. If new-key registration also fails, caller gets
+                            // "Failed to get device key".
+                            RetrofitClient.setDeviceKeyId(deviceKeyId)
+                            return@withContext Result.Success(Pair(deviceKeyId, publicKey))
                         }
                     }
                 }
