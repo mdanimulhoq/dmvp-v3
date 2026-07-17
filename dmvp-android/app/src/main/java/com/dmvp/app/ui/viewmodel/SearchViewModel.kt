@@ -201,10 +201,9 @@ class SearchViewModel @Inject constructor(
                             it.copy(
                                 isLoading = false,
                                 searchResults = response,
-                                // Fix: matchedEvidence is nullable after SearchResponse fix; guard against null
-                                matchedEvidence = response.matchedEvidence ?: emptyList(),
+                                matchedEvidence = response.matchedEvidence,
                                 totalMatches = response.totalMatches,
-                                bestMatchType = response.bestMatchType ?: "none",
+                                bestMatchType = response.bestMatchType,
                                 bestScore = response.bestScore,
                                 progress = 1f,
                                 hasSearched = true,
