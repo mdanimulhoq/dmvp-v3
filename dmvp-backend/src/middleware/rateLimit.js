@@ -136,13 +136,13 @@ const generalRateLimit = rateLimit({
 /**
  * Rate limiter for authentication and device lifecycle endpoints
  * (registration, rotation, revocation, recovery).
- * Limit: 20 requests per 15 minutes per IP.
+ * Limit: 400 requests per 15 minutes per IP.
  *
  * @type {import('express-rate-limit').RateLimitRequestHandler}
  */
 const authRateLimit = rateLimit({
   windowMs: FIFTEEN_MINUTES_MS,
-  max: 20,
+  max: 400,  // ── Step: Increased from 20 to 400 ──
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator,
