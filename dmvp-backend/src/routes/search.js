@@ -78,15 +78,15 @@ router.post(
   searchRateLimit,
   async (req, res, next) => {
     try {
-      const {
-        sha256,
-        canonicalMediaHash,
-        perceptualHash,
-        fingerprintProfile,
-        mediaType,
-        maxResults,
-        maxCandidates,
-      } = req.body;
+      // ── Step 6.5: Destructure with snake_case fallback ──
+      const body = req.body || {};
+      const sha256 = body.sha256;
+      const canonicalMediaHash = body.canonicalMediaHash || body.canonical_media_hash;
+      const perceptualHash = body.perceptualHash || body.perceptual_hash;
+      const fingerprintProfile = body.fingerprintProfile || body.robust_fingerprint_profile;
+      const mediaType = body.mediaType || body.media_type;
+      const maxResults = body.maxResults;
+      const maxCandidates = body.maxCandidates;
 
       // ── Validation ────────────────────────────────────────────────────────
       if (!sha256 || !isValidSHA256(sha256)) {
