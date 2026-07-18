@@ -461,6 +461,60 @@ class DMVPRepository(private val context: Context) {
     }
 
     // ============================
+    // Evidence lookup (registered records)
+    // ============================
+
+    /**
+     * Fetch a registered evidence record by its evidence_id.
+     */
+    suspend fun getEvidenceById(evidenceId: String): Result<EvidenceRecord> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = apiService.getEvidenceById(
+                    evidenceId = evidenceId,
+                    auth = ""
+                )
+                Result.Success(response)
+            } catch (e: Exception) {
+                Timber.e(e, "getEvidenceById failed for $evidenceId")
+                when (e) {
+                    is ApiException -> Result.Error(
+                        exception = e,
+                        errorCode = e.errorCode,
+                        message = e.message
+                    )
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+
+    /**
+     * Fetch a registered evidence record by its original SHA-256.
+     */
+    suspend fun getEvidenceByHash(sha256: String): Result<EvidenceRecord> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val response = apiService.getEvidenceByHash(
+                    sha256 = sha256,
+                    auth = ""
+                )
+                Result.Success(response)
+            } catch (e: Exception) {
+                Timber.e(e, "getEvidenceByHash failed for $sha256")
+                when (e) {
+                    is ApiException -> Result.Error(
+                        exception = e,
+                        errorCode = e.errorCode,
+                        message = e.message
+                    )
+                    else -> Result.Error(exception = e, message = e.message)
+                }
+            }
+        }
+    }
+
+    // ============================
     // Search
     // ============================
 
