@@ -296,38 +296,31 @@ class DMVPRepository(private val context: Context) {
                     )
                 }
 
-                // Sign the request
-                val nonce = SignatureUtils.generateNonce()
-                val timestamp = currentIso8601()
+                val response = try {
+                    sendSignedEvidenceRegistration(cee, deviceKeyId)
+                } catch (e: retrofit2.HttpException) {
+                    val errorBody = e.response()?.errorBody()?.string()
+                    Log.e("DMVP_DEBUG", "HTTP ${e.code()} body=$errorBody")
 
-                // ── Step 3.3: Fix canonicalPayload with excludeSignature ──
-                val canonicalPayload = SignatureUtils.canonicalizePayload(
-                    payload = cee,
-                    excludeSignature = true
-                )
-                val canonicalRequest = "$canonicalPayload\n$nonce\n$timestamp"
-                val signature = DeviceKeyManager.signString(canonicalRequest)
-                if (signature == null) {
-                    return@withContext Result.Error(
-                        errorCode = "SIGNING_FAILED",
-                        message = "Failed to sign evidence"
-                    )
+                    if (e.code() == 404 && errorBody?.contains("DEVICE_NOT_FOUND") == true) {
+                        Timber.w("Device missing on backend; re-registering and retrying evidence registration")
+                        apiService.registerDevice(
+                            DeviceRegistrationRequest(
+                                deviceKeyId = deviceKeyId,
+                                publicKey = publicKey,
+                                attestationSummary = buildAttestationSummary(emptyList()),
+                                platform = "android"
+                            )
+                        )
+                        sendSignedEvidenceRegistration(cee, deviceKeyId)
+                    } else {
+                        return@withContext Result.Error(
+                            exception = e,
+                            message = errorBody ?: e.message(),
+                            errorCode = e.code().toString()
+                        )
+                    }
                 }
-
-                // ── Step 3.2: Idempotency key must be a UUID ──────────────
-                // Idempotency key must be a UUID per FR-CR-08.
-                val idempotencyKey = UUID.randomUUID().toString()
-
-                // Send registration
-                val response = apiService.registerEvidence(
-                    idempotencyKey = idempotencyKey,
-                    signature = signature,
-                    nonce = nonce,
-                    timestamp = timestamp,
-                    deviceKeyId = deviceKeyId,
-                    policyVersion = DmvpConstants.PROTOCOL_VERSION,
-                    cee = cee
-                )
 
                 // ── Step 3.3: Save evidence_id locally ──────────────────────
                 if (response.data != null) {
@@ -345,7 +338,7 @@ class DMVPRepository(private val context: Context) {
                 Log.e("DMVP_DEBUG", "HTTP ${e.code()} body=$errorBody")
                 Result.Error(
                     exception = e,
-                    message = e.message(),
+                    message = errorBody ?: e.message(),
                     errorCode = e.code().toString()
                 )
             } catch (e: Exception) {
@@ -355,6 +348,32 @@ class DMVPRepository(private val context: Context) {
                 )
             }
         }
+    }
+
+
+    private suspend fun sendSignedEvidenceRegistration(
+        cee: CEE,
+        deviceKeyId: String
+    ): ApiResponse<EvidenceRecord> {
+        val nonce = SignatureUtils.generateNonce()
+        val timestamp = currentIso8601()
+        val canonicalPayload = SignatureUtils.canonicalizePayload(
+            payload = cee,
+            excludeSignature = true
+        )
+        val canonicalRequest = "$canonicalPayload\n$nonce\n$timestamp"
+        val signature = DeviceKeyManager.signString(canonicalRequest)
+            ?: throw IllegalStateException("Failed to sign evidence")
+
+        return apiService.registerEvidence(
+            idempotencyKey = UUID.randomUUID().toString(),
+            signature = signature,
+            nonce = nonce,
+            timestamp = timestamp,
+            deviceKeyId = deviceKeyId,
+            policyVersion = DmvpConstants.PROTOCOL_VERSION,
+            cee = cee
+        )
     }
 
     // ============================
