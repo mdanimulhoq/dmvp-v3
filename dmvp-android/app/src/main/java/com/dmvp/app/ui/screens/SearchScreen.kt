@@ -307,7 +307,7 @@ fun SearchScreen(
                                 SearchResultItem(
                                     match = match,
                                     onClick = {
-                                        viewModel.selectMatch(match.evidenceId)
+                                        match.evidenceId?.let { viewModel.selectMatch(it) }
                                     }
                                 )
                             }
@@ -544,7 +544,7 @@ private fun SearchResultItem(
                     )
                 }
                 Text(
-                    text = "ID: ${match.evidenceId.take(12)}...",
+                    text = "ID: ${match.evidenceId.orEmpty().take(12)}...",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                     maxLines = 1,
