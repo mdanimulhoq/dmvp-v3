@@ -36,9 +36,6 @@ fun NavGraph(
                 onNavigateToCompare = {
                     navController.navigate(Screen.Compare.route)
                 },
-                onNavigateToSearch = {
-                    navController.navigate(Screen.Search.route)
-                },
                 onNavigateToDevice = {
                     navController.navigate(Screen.Device.route)
                 }
@@ -78,9 +75,6 @@ fun NavGraph(
                 },
                 onNavigateToRegister = { _, _ ->
                     navController.navigate(Screen.Register.route)
-                },
-                onNavigateToVerify = { _, _ ->
-                    navController.navigate(Screen.Verify.route)
                 }
             )
         }

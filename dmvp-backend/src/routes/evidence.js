@@ -121,6 +121,9 @@ function buildEvidenceRecordResponse(evidence) {
     fingerprint_profile: evidence.robustFingerprintProfile,
     fingerprint_algorithm_versions: evidence.fingerprintAlgorithmVersions,
     signer_device_key_id: evidence.signerDeviceKeyId,
+    signer_device_id: evidence.signerDevice?.deviceId || null,
+    signer_trust_tier: evidence.signerDevice?.trustTier || null,
+    owner_contact: evidence.signerDevice?.metadata?.owner_contact || null,
     timestamp_references: {
       registration_server_time: evidence.registrationServerTime?.toISOString?.() || null,
       trusted_timestamp_token_reference: evidence.trustedTimestampTokenReference || null,
@@ -418,7 +421,7 @@ router.post(
 
 router.get(
   '/:evidenceId',
-  authenticate,
+  // ── Step 5: Removed authenticate for Android access ──
   async (req, res, next) => {
     try {
       const { evidenceId } = req.params;
@@ -431,6 +434,16 @@ router.get(
 
       const evidence = await prisma.evidence.findUnique({
         where: { evidenceId },
+        include: {
+          signerDevice: {
+            select: {
+              deviceId: true,
+              keyId: true,
+              trustTier: true,
+              metadata: true,
+            },
+          },
+        },
       });
 
       if (!evidence) {
@@ -439,8 +452,26 @@ router.get(
         );
       }
 
+      // ── Step 5: Normalized snake_case response with provenance ──
       return res.status(200).json({
-        ...evidence,
+        evidence_id: evidence.evidenceId,
+        media_type: evidence.mediaType,
+        sha256_original: evidence.sha256Original,
+        canonical_media_hash: evidence.canonicalMediaHash,
+        fingerprint_profile: evidence.robustFingerprintProfile,
+        fingerprint_algorithm_versions: evidence.fingerprintAlgorithmVersions,
+        signer_device_key_id: evidence.signerDeviceKeyId,
+        signer_device_id: evidence.signerDevice?.deviceId || null,
+        signer_trust_tier: evidence.signerDevice?.trustTier || null,
+        owner_contact: evidence.signerDevice?.metadata?.owner_contact || null,
+        timestamp_references: {
+          registration_server_time: evidence.registrationServerTime?.toISOString?.() || null,
+          trusted_timestamp_token_reference: evidence.trustedTimestampTokenReference || null,
+        },
+        privacy_flags: evidence.privacyFlags,
+        lifecycle_state: evidence.status,
+        created_at: evidence.createdAt?.toISOString?.() || null,
+        updated_at: evidence.updatedAt?.toISOString?.() || null,
         policy_version: POLICY_VERSION,
         request_id: req.requestId,
       });
@@ -474,6 +505,16 @@ router.get(
           sha256Original: sha256.toLowerCase(),
         },
         orderBy: { createdAt: 'desc' },
+        include: {
+          signerDevice: {
+            select: {
+              deviceId: true,
+              keyId: true,
+              trustTier: true,
+              metadata: true,
+            },
+          },
+        },
       });
 
       if (!evidence) {
