@@ -219,20 +219,11 @@ router.post(
 
       // ── Step 3.2: Idempotency logic ──────────────────────────────────────
 
-      // Get idempotency key from header
-      const idempotencyKey = getIdempotencyKey(req);
-
-      if (!isValidIdempotencyKey(idempotencyKey)) {
-        return res.status(400).json(
-          buildError(
-            400,
-            'INVALID_IDEMPOTENCY_KEY',
-            'Idempotency-Key header is required and must be a UUID.',
-            null,
-            req
-          )
-        );
-      }
+      // Use client idempotency key when provided; generate one for older Android builds.
+      const incomingIdempotencyKey = getIdempotencyKey(req);
+      const idempotencyKey = isValidIdempotencyKey(incomingIdempotencyKey)
+        ? incomingIdempotencyKey
+        : crypto.randomUUID();
 
       const requestHash = computeRequestHash(req.body);
       const idempotencyScope = 'POST /api/v1/evidence';
