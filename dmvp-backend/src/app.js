@@ -42,6 +42,7 @@ const verifyRoutes = safeLoadRoute('verify', './routes/verify');
 const searchRoutes = safeLoadRoute('search', './routes/search');
 const devicesRoutes = safeLoadRoute('devices', './routes/devices');
 const ownershipRoutes = safeLoadRoute('ownership', './routes/ownership');
+const assetsRoutes = safeLoadRoute('assets', './routes/assets');
 
 const app = express();
 
@@ -251,6 +252,7 @@ app.get(`${API_BASE_PATH}`, (req, res) => {
       search: `${API_BASE_PATH}/search`,
       devices: `${API_BASE_PATH}/devices`,
       ownership: `${API_BASE_PATH}/ownership`,
+      assets: `${API_BASE_PATH}/assets`,
     },
   });
 });
@@ -270,6 +272,9 @@ if (devicesRoutes) {
 }
 if (ownershipRoutes) {
   app.use(`${API_BASE_PATH}/ownership`, authRateLimit, ownershipRoutes);
+}
+if (assetsRoutes) {
+  app.use(`${API_BASE_PATH}/assets`, assetsRoutes);
 }
 
 app.use((req, res, next) => {
