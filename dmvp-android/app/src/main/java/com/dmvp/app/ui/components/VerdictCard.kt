@@ -593,11 +593,13 @@ private fun MatchedEvidenceSection(
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
         )
         matchedEvidence.take(3).forEach { match ->
+            val evidenceId = match.evidenceId.orEmpty()
+            val matchType = match.matchType.orEmpty()
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(enabled = onEvidenceClick != null) {
-                        onEvidenceClick?.invoke(match.evidenceId)
+                    .clickable(enabled = onEvidenceClick != null && evidenceId.isNotEmpty()) {
+                        onEvidenceClick?.invoke(evidenceId)
                     }
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
@@ -611,12 +613,14 @@ private fun MatchedEvidenceSection(
                 ) {
                     Column {
                         Text(
-                            text = match.matchType.replaceFirstChar { it.uppercase() },
+                            text = if (matchType.isNotEmpty())
+                                matchType.replaceFirstChar { it.uppercase() }
+                            else "Unknown",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
                         Text(
-                            text = match.evidenceId.take(20) + "...",
+                            text = if (evidenceId.length > 20) evidenceId.take(20) + "..." else evidenceId.ifEmpty { "—" },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                             maxLines = 1,

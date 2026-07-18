@@ -157,13 +157,13 @@ enum class TransformationIndicator {
  */
 data class MatchedEvidence(
     @SerializedName("evidence_id")
-    val evidenceId: String,
+    val evidenceId: String? = null,
 
     @SerializedName("sha256")
     val sha256: String? = null,
 
     @SerializedName("match_type")
-    val matchType: String, // "exact", "canonical", or "similarity"
+    val matchType: String? = null, // "exact", "canonical", or "similarity"
 
     @SerializedName("similarity_score")
     val similarityScore: Double? = null,
