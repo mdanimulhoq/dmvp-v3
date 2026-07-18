@@ -50,7 +50,12 @@ data class DeviceUiState(
     val errorCode: String? = null,
     val successMessage: String? = null,
     val showConfirmDialog: Boolean = false,
-    val progress: Float = 0f
+    val progress: Float = 0f,
+    // ── Step 9: Owner contact fields ──
+    val ownerName: String = "",
+    val ownerPhone: String = "",
+    val ownerAddress: String = "",
+    val isSavingContact: Boolean = false
 )
 
 @HiltViewModel
@@ -76,6 +81,15 @@ class DeviceViewModel @Inject constructor(
                 val isHardwareBacked = DeviceKeyManager.isHardwareBacked()
                 val attestationSummary = DeviceKeyManager.getAttestationSummary()
 
+                // ── Step 9: Fetch device info from backend for owner_contact ──
+                var ownerContact: OwnerContact? = null
+                if (deviceKeyId != null) {
+                    val deviceResult = repository.getDeviceKeyInfo(deviceKeyId)
+                    if (deviceResult is Result.Success) {
+                        ownerContact = deviceResult.data.ownerContact
+                    }
+                }
+
                 _uiState.update {
                     it.copy(
                         isLoading = false,
@@ -93,7 +107,10 @@ class DeviceViewModel @Inject constructor(
                                 rooted = attestationSummary["rooted"] as? Boolean ?: false,
                                 extra = attestationSummary.filterKeys { it !in listOf("valid", "hardware_backed", "platform", "appIntegrity", "rooted") }
                             )
-                        } else null
+                        } else null,
+                        ownerName = ownerContact?.name ?: "",
+                        ownerPhone = ownerContact?.phone ?: "",
+                        ownerAddress = ownerContact?.address ?: ""
                     )
                 }
                 loadDeviceList()
@@ -523,6 +540,87 @@ class DeviceViewModel @Inject constructor(
 
     fun refresh() {
         loadDeviceInfo()
+    }
+
+    // ── Step 9: Owner contact methods ──
+
+    fun setOwnerName(value: String) {
+        _uiState.update { it.copy(ownerName = value) }
+    }
+
+    fun setOwnerPhone(value: String) {
+        _uiState.update { it.copy(ownerPhone = value) }
+    }
+
+    fun setOwnerAddress(value: String) {
+        _uiState.update { it.copy(ownerAddress = value) }
+    }
+
+    fun saveContactInfo() {
+        val state = uiState.value
+        val name = state.ownerName.trim()
+        val phone = state.ownerPhone.trim()
+        val address = state.ownerAddress.trim()
+
+        if (name.isEmpty() && phone.isEmpty() && address.isEmpty()) {
+            _uiState.update {
+                it.copy(error = "Please enter at least one contact field", errorCode = "EMPTY_CONTACT")
+            }
+            return
+        }
+
+        viewModelScope.launch {
+            try {
+                _uiState.update { it.copy(isSavingContact = true, error = null, errorCode = null) }
+                val contact = OwnerContact(
+                    name = name.ifEmpty { null },
+                    phone = phone.ifEmpty { null },
+                    address = address.ifEmpty { null }
+                )
+                val result = repository.saveDeviceContact(contact)
+                when (result) {
+                    is Result.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                isSavingContact = false,
+                                successMessage = "Contact info saved",
+                                selectedDeviceKey = result.data
+                            )
+                        }
+                    }
+                    is Result.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                isSavingContact = false,
+                                error = result.message ?: "Failed to save contact",
+                                errorCode = result.errorCode ?: "SAVE_CONTACT_ERROR"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "saveContactInfo failed", e)
+                _uiState.update {
+                    it.copy(
+                        isSavingContact = false,
+                        error = e.message ?: "Failed to save contact",
+                        errorCode = "SAVE_CONTACT_ERROR"
+                    )
+                }
+            }
+        }
+    }
+
+    /** Load contact info from current device key if available. */
+    fun loadContactFromDevice(device: DeviceKey?) {
+        val contact = device?.ownerContact
+        _uiState.update {
+            it.copy(
+                ownerName = contact?.name ?: "",
+                ownerPhone = contact?.phone ?: "",
+                ownerAddress = contact?.address ?: ""
+            )
+        }
     }
 }
 

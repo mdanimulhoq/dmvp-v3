@@ -306,32 +306,22 @@ class CompareViewModel @Inject constructor(
                 when (verifyResult) {
                     is Result.Success -> {
                         val v = verifyResult.data
-                        val refMatch = v.matchedEvidenceList.firstOrNull { it.evidenceId == state.referenceRecord?.evidenceId }
-                        val bestMatch = refMatch ?: v.matchedEvidenceList.firstOrNull()
-                        val score = bestMatch?.similarityScore
+                        // ── Step 11: Only use refMatch — no fallback to other registered evidence ──
+                        val refMatch = v.matchedEvidenceList.firstOrNull {
+                            it.evidenceId == state.referenceRecord?.evidenceId
+                        }
+                        val score = refMatch?.similarityScore
                         val outcome = when {
                             v.integrityVerdict == IntegrityVerdict.EXACT_MATCH ->
                                 CompareOutcome.EXACT_MATCH
                             v.integrityVerdict == IntegrityVerdict.CANONICAL_MATCH ->
                                 CompareOutcome.CANONICAL_MATCH
-                            v.similarityVerdict == SimilarityVerdict.STRONG_DERIVATIVE ||
-                                    v.similarityVerdict == SimilarityVerdict.PROBABLE_DERIVATIVE ->
-                                CompareOutcome.SIMILAR_MATCH
+                            // Only SIMILAR_MATCH if the matched evidence IS our reference
+                            refMatch != null && (
+                                v.similarityVerdict == SimilarityVerdict.STRONG_DERIVATIVE ||
+                                v.similarityVerdict == SimilarityVerdict.PROBABLE_DERIVATIVE
+                            ) -> CompareOutcome.SIMILAR_MATCH
                             else -> CompareOutcome.NO_MATCH
-                        }
-
-                        // If the /verify result surfaced a matched evidence
-                        // that is NOT our reference but IS registered, fetch
-                        // its record for metadata display.
-                        var displayedRecord = state.referenceRecord
-                        val bestId = bestMatch?.evidenceId
-                        if (outcome != CompareOutcome.NO_MATCH &&
-                            state.referenceRecord == null &&
-                            !bestId.isNullOrBlank()
-                        ) {
-                            (repository.getEvidenceById(bestId) as? Result.Success)?.let {
-                                displayedRecord = it.data
-                            }
                         }
 
                         _uiState.update {
@@ -339,7 +329,6 @@ class CompareViewModel @Inject constructor(
                                 verdict = v,
                                 outcome = outcome,
                                 similarityScore = score,
-                                referenceRecord = displayedRecord,
                                 isLoading = false,
                                 progress = 1f,
                                 step = CompareStep.RESULT

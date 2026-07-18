@@ -297,6 +297,7 @@ router.post(
               trustTier: true,
               attestationStatus: true,
               revokedAt: true,
+              metadata: true,
             },
           },
         },
@@ -321,10 +322,16 @@ router.post(
           signerDeviceKeyId: exactMatch.signerDeviceKeyId,
         };
         matchedEvidenceList.push({
+          evidence_id: exactMatch.evidenceId,
           evidenceId: exactMatch.evidenceId,
           sha256: exactMatch.sha256Original,
+          match_type: 'exact',
           matchType: 'exact',
+          similarity_score: 1.0,
           similarityScore: 1.0,
+          signer_device_key_id: exactMatch.signerDeviceKeyId,
+          signerDeviceKeyId: exactMatch.signerDeviceKeyId,
+          owner_contact: exactMatch.signerDevice?.metadata?.owner_contact || null,
           timestamp: exactMatch.createdAt,
         });
 
@@ -391,6 +398,7 @@ router.post(
                 trustTier: true,
                 attestationStatus: true,
                 revokedAt: true,
+                metadata: true,
               },
             },
           },
@@ -430,17 +438,24 @@ router.post(
           }
 
           // Add to matched evidence list (avoid duplicates)
-          const existingIds = new Set(matchedEvidenceList.map(m => m.evidenceId));
+          const existingIds = new Set(matchedEvidenceList.map(m => m.evidenceId || m.evidence_id));
           for (const match of topMatches) {
-            if (!existingIds.has(match.evidenceId)) {
+            const eid = match.evidenceId || match.evidence_id;
+            if (!existingIds.has(eid)) {
               matchedEvidenceList.push({
-                evidenceId: match.evidenceId,
+                evidence_id: eid,
+                evidenceId: eid,
                 sha256: match.sha256Original,
+                match_type: 'similarity',
                 matchType: 'similarity',
+                similarity_score: match.similarityScore,
                 similarityScore: match.similarityScore,
+                signer_device_key_id: match.signerDeviceKeyId,
+                signerDeviceKeyId: match.signerDeviceKeyId,
+                owner_contact: match.signerDevice?.metadata?.owner_contact || null,
                 timestamp: match.createdAt,
               });
-              existingIds.add(match.evidenceId);
+              existingIds.add(eid);
             }
           }
 
@@ -457,6 +472,45 @@ router.post(
               durationB,
               mediaType
             );
+          }
+        }
+      }
+
+      // ── Step 6: Stage 3: Canonical hash lookup ──────────────────────────
+      if (!exactMatch && canonicalMediaHash && isValidSHA256(canonicalMediaHash)) {
+        const canonicalMatch = await prisma.evidence.findFirst({
+          where: {
+            canonicalMediaHash: canonicalMediaHash.toLowerCase(),
+          },
+          include: {
+            signerDevice: {
+              select: {
+                deviceId: true,
+                keyId: true,
+                trustTier: true,
+                metadata: true,
+              },
+            },
+          },
+        });
+
+        if (canonicalMatch) {
+          integrityVerdict = 'CANONICAL_MATCH';
+          const existingIds = new Set(matchedEvidenceList.map(m => m.evidenceId || m.evidence_id));
+          if (!existingIds.has(canonicalMatch.evidenceId)) {
+            matchedEvidenceList.push({
+              evidence_id: canonicalMatch.evidenceId,
+              evidenceId: canonicalMatch.evidenceId,
+              sha256: canonicalMatch.sha256Original,
+              match_type: 'canonical',
+              matchType: 'canonical',
+              similarity_score: 1.0,
+              similarityScore: 1.0,
+              signer_device_key_id: canonicalMatch.signerDeviceKeyId,
+              signerDeviceKeyId: canonicalMatch.signerDeviceKeyId,
+              owner_contact: canonicalMatch.signerDevice?.metadata?.owner_contact || null,
+              timestamp: canonicalMatch.createdAt,
+            });
           }
         }
       }
@@ -511,8 +565,10 @@ router.post(
         provenance_verdict: provenanceVerdict,
         similarity_verdict: similarityVerdict,
         evidence_quality: evidenceQuality,
+        evidence_quality_verdict: evidenceQuality,
         trust_tier: trustTier,
         transformation_indicators: transformationIndicators,
+        matched_evidence: matchedEvidenceList.length > 0 ? matchedEvidenceList[0] : null,
         matched_evidence_list: matchedEvidenceList,
         warnings,  // ── Step 7.4: Warnings added ──
         verification_mode: mode,
