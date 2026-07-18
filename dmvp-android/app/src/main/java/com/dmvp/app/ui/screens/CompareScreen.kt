@@ -374,7 +374,7 @@ private fun CompareResultCard(
         CompareOutcome.NO_MATCH -> Triple(
             "No match",
             Error,
-            "The candidate does not match the reference registered in the registry."
+            "The candidate does not match the selected reference. This is a different media."
         )
         CompareOutcome.REFERENCE_NOT_REGISTERED -> Triple(
             "Reference not registered",
@@ -441,6 +441,8 @@ private fun CompareResultCard(
                 MetaRow("Evidence ID", record.evidenceId)
                 MetaRow("Media type", record.mediaType)
                 MetaRow("Signer device", record.signerDeviceKeyId)
+                record.signerDeviceId?.let { MetaRow("Device ID", it) }
+                record.signerTrustTier?.let { MetaRow("Trust tier", it) }
                 MetaRow("Registered at", record.createdAt)
                 MetaRow("Lifecycle", record.lifecycleState)
                 if (record.canonicalMediaHash != null) {
@@ -450,6 +452,32 @@ private fun CompareResultCard(
                     )
                 }
                 MetaRow("SHA-256", record.sha256Original.take(24) + "…")
+
+                val contact = record.ownerContact
+                if (contact != null && (
+                    !contact.name.isNullOrBlank() ||
+                    !contact.phone.isNullOrBlank() ||
+                    !contact.address.isNullOrBlank()
+                )) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Divider()
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Owner contact",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    contact.name?.takeIf { it.isNotBlank() }?.let {
+                        MetaRow("Name", it)
+                    }
+                    contact.phone?.takeIf { it.isNotBlank() }?.let {
+                        MetaRow("Phone", it)
+                    }
+                    contact.address?.takeIf { it.isNotBlank() }?.let {
+                        MetaRow("Address", it)
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
                 TextButton(onClick = { onOpenEvidenceDetail(record.evidenceId) }) {
                     Text("View full evidence details")
