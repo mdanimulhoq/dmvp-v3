@@ -403,10 +403,12 @@ object FingerprintUtils {
         var usedWeight = 0.0
 
         // For phash
-        if (weights.containsKey("phash") && profileA.phash.isNotEmpty() && profileB.phash.isNotEmpty()) {
+        val phashA = profileA.phash
+        val phashB = profileB.phash
+        if (weights.containsKey("phash") && phashA != null && phashB != null && phashA.isNotEmpty() && phashB.isNotEmpty()) {
             try {
-                val dist = hammingDistance(profileA.phash, profileB.phash)
-                val bitLen = if (profileA.phash.matches(Regex("^[0-9a-fA-F]+$"))) profileA.phash.length * 4 else profileA.phash.length
+                val dist = hammingDistance(phashA, phashB)
+                val bitLen = if (phashA.matches(Regex("^[0-9a-fA-F]+$"))) phashA.length * 4 else phashA.length
                 val similarity = if (bitLen > 0) 1.0 - (dist.toDouble() / bitLen) else 0.0
                 weightedSimilarity += weights["phash"]!! * similarity
                 usedWeight += weights["phash"]!!
