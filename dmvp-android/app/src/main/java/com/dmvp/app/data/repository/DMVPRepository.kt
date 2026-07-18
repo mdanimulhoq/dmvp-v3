@@ -212,6 +212,39 @@ class DMVPRepository(private val context: Context) {
     }
 
     /**
+     * Save owner contact info for the current device.
+     * Reuses existing /devices/register endpoint with owner_contact field.
+     */
+    suspend fun saveDeviceContact(ownerContact: OwnerContact): Result<DeviceKey> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val deviceKeyId = getDeviceKeyId() ?: return@withContext Result.Error(
+                    errorCode = "NO_DEVICE_KEY",
+                    message = "No device key found"
+                )
+                val publicKey = getPublicKey() ?: return@withContext Result.Error(
+                    errorCode = "NO_PUBLIC_KEY",
+                    message = "No public key found"
+                )
+
+                val request = DeviceRegistrationRequest(
+                    deviceKeyId = deviceKeyId,
+                    publicKey = publicKey,
+                    attestationSummary = buildAttestationSummary(emptyList()),
+                    platform = "android",
+                    ownerContact = ownerContact
+                )
+
+                apiService.registerDevice(request = request)
+                getDeviceKeyInfo(deviceKeyId)
+            } catch (e: Exception) {
+                Timber.e(e, "saveDeviceContact failed")
+                Result.Error(exception = e, message = e.message)
+            }
+        }
+    }
+
+    /**
      * Build attestation summary from certificate chain.
      */
     private fun buildAttestationSummary(certChain: List<java.security.cert.X509Certificate>): AttestationSummary {
