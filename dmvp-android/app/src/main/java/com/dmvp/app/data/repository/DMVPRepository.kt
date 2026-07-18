@@ -116,7 +116,8 @@ class DMVPRepository(private val context: Context) {
                                 val errorBody = e.response()?.errorBody()?.string()
                                 Timber.e("❌ DEBUG: Error body: $errorBody")
                             }
-                            // Continue with existing logic if sync fails
+                            RetrofitClient.setDeviceKeyId(deviceKeyId)
+                            return@withContext Result.Success(Pair(deviceKeyId, publicKey))
                         }
                     }
                 }

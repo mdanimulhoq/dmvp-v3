@@ -1,6 +1,6 @@
 package com.dmvp.app.utils
 
-import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -9,7 +9,7 @@ import com.google.gson.JsonPrimitive  // ── Step: Added for number handling 
 
 object CanonicalJson {
 
-    private val gson = Gson()
+    private val gson = GsonBuilder().disableHtmlEscaping().create()
 
     fun canonicalize(
         value: Any?,
