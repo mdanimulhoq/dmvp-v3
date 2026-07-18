@@ -82,7 +82,6 @@ import timber.log.Timber
 fun CaptureScreen(
     onNavigateBack: () -> Unit,
     onNavigateToRegister: (File, String) -> Unit,
-    onNavigateToVerify: (File, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val viewModel: CaptureViewModel = hiltViewModel()
@@ -250,7 +249,7 @@ fun CaptureScreen(
                         )
 
                         // ── Step 3.3: Action buttons ──────────────────────────
-                        // Register button now calls viewModel.registerEvidence() directly
+                        // Register button only — Verify moved to dedicated Verify screen
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -262,7 +261,7 @@ fun CaptureScreen(
                                     // ── Step 3.3: Direct registration from Capture ──
                                     viewModel.registerEvidence()
                                 },
-                                modifier = Modifier.weight(1f),
+                                modifier = Modifier.fillMaxWidth(),
                                 enabled = uiState.validationMode == com.dmvp.app.ui.viewmodel.ValidationMode.READY_FOR_REGISTRATION ||
                                         uiState.validationMode == com.dmvp.app.ui.viewmodel.ValidationMode.COMPLETE,
                                 colors = ButtonDefaults.buttonColors(
@@ -277,28 +276,6 @@ fun CaptureScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text("Register")
-                            }
-                            Button(
-                                onClick = {
-                                    uiState.selectedFile?.let { file ->
-                                        val mediaType = uiState.mediaType ?: DmvpConstants.MEDIA_TYPE_IMAGE
-                                        onNavigateToVerify(file, mediaType)
-                                    }
-                                },
-                                modifier = Modifier.weight(1f),
-                                enabled = uiState.sha256 != null,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Success,
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Verified,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Verify")
                             }
                         }
 
@@ -587,8 +564,7 @@ private fun CaptureScreenPreview() {
     DMVPTheme {
         CaptureScreen(
             onNavigateBack = {},
-            onNavigateToRegister = { _, _ -> },
-            onNavigateToVerify = { _, _ -> }
+            onNavigateToRegister = { _, _ -> }
         )
     }
 }

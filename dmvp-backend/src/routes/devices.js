@@ -29,8 +29,25 @@ function mapDevice(d) {
     lifecycle_state: d.revokedAt ? 'REVOKED' : 'ACTIVE',
     revoked_at: d.revokedAt?.toISOString?.() || null,
     created_at: d.createdAt?.toISOString?.() || null,
-    updated_at: d.updatedAt?.toISOString?.() || null
+    updated_at: d.updatedAt?.toISOString?.() || null,
+    owner_contact: d.metadata?.owner_contact || null
   };
+}
+
+// ── Helper: sanitize owner_contact input ──
+function cleanOwnerContact(input) {
+  if (!input || typeof input !== 'object') return null;
+  const result = {};
+  if (typeof input.name === 'string' && input.name.trim()) {
+    result.name = input.name.trim().slice(0, 120);
+  }
+  if (typeof input.phone === 'string' && input.phone.trim()) {
+    result.phone = input.phone.trim().slice(0, 40);
+  }
+  if (typeof input.address === 'string' && input.address.trim()) {
+    result.address = input.address.trim().slice(0, 300);
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -51,11 +68,22 @@ router.post('/register', authRateLimit, async (req, res, next) => {
       app_version,
       device_model,
       os_version,
-      hardware_backed
+      hardware_backed,
+      owner_contact
     } = req.body;
 
     if (!key_id || !public_key) {
       return res.status(400).json(buildError(400, 'VALIDATION_ERROR', 'key_id and public_key required', null, req));
+    }
+
+    // ── Step 4: Build metadata with owner_contact ──
+    const cleanedContact = cleanOwnerContact(owner_contact);
+
+    // For upsert, merge with existing metadata if present
+    const existingDevice = await prisma.device.findUnique({ where: { keyId: key_id }, select: { metadata: true } });
+    let metadata = existingDevice?.metadata || {};
+    if (cleanedContact) {
+      metadata = { ...metadata, owner_contact: cleanedContact };
     }
 
     const device = await prisma.device.upsert({
@@ -69,7 +97,8 @@ router.post('/register', authRateLimit, async (req, res, next) => {
         attestationSummary: attestation_summary || null,
         lastSeenAt: new Date(),
         appVersion: app_version || undefined,
-        osVersion: os_version || undefined
+        osVersion: os_version || undefined,
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined
       },
       create: {
         deviceId: device_id || undefined,
@@ -86,6 +115,7 @@ router.post('/register', authRateLimit, async (req, res, next) => {
         deviceModel: device_model || null,
         osVersion: os_version || null,
         lastSeenAt: new Date(),
+        metadata: Object.keys(metadata).length > 0 ? metadata : undefined
       },
     });
 
@@ -309,6 +339,7 @@ router.get('/:device_key_id', async (req, res, next) => {
         lastSeenAt: true,
         publicKeyReference: true,
         updatedAt: true,
+        metadata: true,
       },
     });
 

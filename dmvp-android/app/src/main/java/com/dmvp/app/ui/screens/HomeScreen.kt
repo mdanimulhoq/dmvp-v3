@@ -39,7 +39,6 @@ fun HomeScreen(
     onNavigateToCapture: () -> Unit,
     onNavigateToVerify: () -> Unit,
     onNavigateToCompare: () -> Unit = {},
-    onNavigateToSearch: () -> Unit,
     onNavigateToDevice: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -164,19 +163,6 @@ fun HomeScreen(
                             modifier = Modifier.weight(1f)
                         )
                         ActionCard(
-                            icon = Icons.Default.Search,
-                            title = "Search",
-                            description = "Search for evidence by hash or similarity",
-                            color = Info,
-                            onClick = onNavigateToSearch,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ActionCard(
                             icon = Icons.Default.Devices,
                             title = "Device",
                             description = "Manage device keys and trust",
@@ -184,7 +170,6 @@ fun HomeScreen(
                             onClick = onNavigateToDevice,
                             modifier = Modifier.weight(1f)
                         )
-                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
@@ -333,7 +318,6 @@ private fun HomeScreenPreview() {
             onNavigateToCapture = {},
             onNavigateToVerify = {},
             onNavigateToCompare = {},
-            onNavigateToSearch = {},
             onNavigateToDevice = {}
         )
     }
