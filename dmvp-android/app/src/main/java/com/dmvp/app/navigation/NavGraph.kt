@@ -7,8 +7,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.dmvp.app.ui.screens.CaptureScreen
+import com.dmvp.app.ui.screens.CompareScreen
 import com.dmvp.app.ui.screens.DeviceScreen
 import com.dmvp.app.ui.screens.ErrorScreen
+import com.dmvp.app.ui.screens.EvidenceDetailScreen
 import com.dmvp.app.ui.screens.HomeScreen
 import com.dmvp.app.ui.screens.RegisterScreen
 import com.dmvp.app.ui.screens.SearchScreen
@@ -31,12 +33,41 @@ fun NavGraph(
                 onNavigateToVerify = {
                     navController.navigate(Screen.Verify.route)
                 },
+                onNavigateToCompare = {
+                    navController.navigate(Screen.Compare.route)
+                },
                 onNavigateToSearch = {
                     navController.navigate(Screen.Search.route)
                 },
                 onNavigateToDevice = {
                     navController.navigate(Screen.Device.route)
                 }
+            )
+        }
+
+        composable(Screen.Compare.route) {
+            CompareScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToEvidenceDetail = { evidenceId ->
+                    navController.navigate(Screen.EvidenceDetail.createRoute(evidenceId))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.EvidenceDetail.route,
+            arguments = listOf(
+                navArgument(Screen.EvidenceDetail.ARG_EVIDENCE_ID) {
+                    type = NavType.StringType
+                }
+            )
+        ) { backStackEntry ->
+            val id = backStackEntry.arguments
+                ?.getString(Screen.EvidenceDetail.ARG_EVIDENCE_ID)
+                .orEmpty()
+            EvidenceDetailScreen(
+                evidenceId = id,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -59,13 +90,12 @@ fun NavGraph(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onNavigateToVerdictDetail = {
-                    navController.navigate(
-                        Screen.Error.createRoute(
-                            title = "Verdict detail unavailable",
-                            message = "Verdict detail screen is not wired yet."
+                onNavigateToVerdictDetail = { evidenceId ->
+                    if (evidenceId.isNotBlank()) {
+                        navController.navigate(
+                            Screen.EvidenceDetail.createRoute(evidenceId)
                         )
-                    )
+                    }
                 }
             )
         }
@@ -75,13 +105,12 @@ fun NavGraph(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onNavigateToEvidenceDetail = {
-                    navController.navigate(
-                        Screen.Error.createRoute(
-                            title = "Evidence detail unavailable",
-                            message = "Evidence detail screen is not wired yet."
+                onNavigateToEvidenceDetail = { evidenceId ->
+                    if (evidenceId.isNotBlank()) {
+                        navController.navigate(
+                            Screen.EvidenceDetail.createRoute(evidenceId)
                         )
-                    )
+                    }
                 },
                 onNavigateToHome = {
                     navController.popBackStack(
@@ -97,13 +126,12 @@ fun NavGraph(
                 onNavigateBack = {
                     navController.popBackStack()
                 },
-                onNavigateToEvidenceDetail = {
-                    navController.navigate(
-                        Screen.Error.createRoute(
-                            title = "Evidence detail unavailable",
-                            message = "Evidence detail screen is not wired yet."
+                onNavigateToEvidenceDetail = { evidenceId ->
+                    if (evidenceId.isNotBlank()) {
+                        navController.navigate(
+                            Screen.EvidenceDetail.createRoute(evidenceId)
                         )
-                    )
+                    }
                 }
             )
         }
