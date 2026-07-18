@@ -13,9 +13,9 @@ interface ApiService {
     @POST("evidence")
     suspend fun registerEvidence(
         @Header("Idempotency-Key") idempotencyKey: String? = null,
-        @Header("X-Request-Signature") signature: String,
-        @Header("X-Nonce") nonce: String,
-        @Header("X-Timestamp") timestamp: String,
+        @Header("X-DMVP-Signature") signature: String,
+        @Header("X-DMVP-Nonce") nonce: String,
+        @Header("X-DMVP-Timestamp") timestamp: String,
         @Header("X-Policy-Version") policyVersion: String? = null,
         @Header("X-DMVP-Device-Key-Id") deviceKeyId: String,
         @Body cee: CEE
