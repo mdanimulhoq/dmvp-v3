@@ -288,6 +288,14 @@ fun DeviceScreen(
                         isHardwareBacked = uiState.isHardwareBacked,
                         attestationAvailable = uiState.attestationAvailable,
                         attestationSummary = uiState.attestationSummary,
+                        ownerName = uiState.ownerName,
+                        ownerPhone = uiState.ownerPhone,
+                        ownerAddress = uiState.ownerAddress,
+                        isSavingContact = uiState.isSavingContact,
+                        onOwnerNameChange = viewModel::setOwnerName,
+                        onOwnerPhoneChange = viewModel::setOwnerPhone,
+                        onOwnerAddressChange = viewModel::setOwnerAddress,
+                        onSaveContact = viewModel::saveContactInfo,
                         onRotate = { viewModel.startRotation() },
                         onRevoke = { viewModel.startRevocation() },
                         onRecover = { viewModel.startRecovery() }
@@ -358,6 +366,14 @@ private fun CurrentDeviceInfo(
     isHardwareBacked: Boolean,
     attestationAvailable: Boolean,
     attestationSummary: com.dmvp.app.data.model.AttestationSummary?,
+    ownerName: String = "",
+    ownerPhone: String = "",
+    ownerAddress: String = "",
+    isSavingContact: Boolean = false,
+    onOwnerNameChange: (String) -> Unit = {},
+    onOwnerPhoneChange: (String) -> Unit = {},
+    onOwnerAddressChange: (String) -> Unit = {},
+    onSaveContact: () -> Unit = {},
     onRotate: () -> Unit,
     onRevoke: () -> Unit,
     onRecover: () -> Unit
@@ -482,6 +498,62 @@ private fun CurrentDeviceInfo(
                     color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                     modifier = Modifier.padding(vertical = 4.dp)
                 )
+
+                // ── Step 9: Owner Contact Info ──
+                Text(
+                    text = "Owner Contact Info",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+                OutlinedTextField(
+                    value = ownerName,
+                    onValueChange = onOwnerNameChange,
+                    label = { Text("Name") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("Owner name") }
+                )
+                OutlinedTextField(
+                    value = ownerPhone,
+                    onValueChange = onOwnerPhoneChange,
+                    label = { Text("Phone / Contact") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    placeholder = { Text("+880...") }
+                )
+                OutlinedTextField(
+                    value = ownerAddress,
+                    onValueChange = onOwnerAddressChange,
+                    label = { Text("Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 2,
+                    placeholder = { Text("Address") }
+                )
+                Button(
+                    onClick = onSaveContact,
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSavingContact && (ownerName.isNotBlank() || ownerPhone.isNotBlank() || ownerAddress.isNotBlank()),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Success,
+                        contentColor = Color.White
+                    )
+                ) {
+                    if (isSavingContact) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            color = Color.White,
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Text(if (isSavingContact) "Saving..." else "Save Contact Info")
+                }
+
+                Divider(
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                    modifier = Modifier.padding(vertical = 4.dp)
+                )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)

@@ -15,6 +15,15 @@ import com.google.gson.annotations.SerializedName
 import java.util.Date
 
 /**
+ * Owner contact information.
+ */
+data class OwnerContact(
+    @SerializedName("name") val name: String? = null,
+    @SerializedName("phone") val phone: String? = null,
+    @SerializedName("address") val address: String? = null
+)
+
+/**
  * Device trust tiers as defined in the specification.
  */
 enum class DeviceTrustTier {
@@ -77,7 +86,10 @@ data class DeviceKey(
     val createdAt: String? = null,
 
     @SerializedName("updated_at")
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+
+    @SerializedName("owner_contact")
+    val ownerContact: OwnerContact? = null
 )
 
 /**
@@ -96,7 +108,10 @@ data class DeviceRegistrationRequest(
     val attestationSummary: AttestationSummary? = null,
 
     @SerializedName("platform")
-    val platform: String = "android"
+    val platform: String = "android",
+
+    @SerializedName("owner_contact")
+    val ownerContact: OwnerContact? = null
 )
 
 /**

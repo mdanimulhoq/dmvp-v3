@@ -312,17 +312,36 @@ data class PolicyVersionResponse(
 )
 
 data class EvidenceRecord(
-    @SerializedName("evidence_id") val evidenceId: String,
-    @SerializedName("owner_account_id") val ownerAccountId: String? = null,
-    @SerializedName("media_type") val mediaType: String,
-    @SerializedName("sha256_original") val sha256Original: String,
-    @SerializedName("canonical_media_hash") val canonicalMediaHash: String? = null,
-    @SerializedName("fingerprint_profile") val fingerprintProfile: RobustFingerprint,
-    @SerializedName("fingerprint_algorithm_versions") val fingerprintAlgorithmVersions: FingerprintAlgorithmVersions,
-    @SerializedName("signer_device_key_id") val signerDeviceKeyId: String,
-    @SerializedName("timestamp_references") val timestampReferences: Map<String, Any>? = null,
-    @SerializedName("privacy_flags") val privacyFlags: PrivacyFlags,
-    @SerializedName("lifecycle_state") val lifecycleState: String,
-    @SerializedName("created_at") val createdAt: String,
-    @SerializedName("updated_at") val updatedAt: String
+    @SerializedName("evidence_id", alternate = ["evidenceId"])
+    val evidenceId: String,
+    @SerializedName("owner_account_id")
+    val ownerAccountId: String? = null,
+    @SerializedName("media_type")
+    val mediaType: String,
+    @SerializedName("sha256_original")
+    val sha256Original: String,
+    @SerializedName("canonical_media_hash")
+    val canonicalMediaHash: String? = null,
+    @SerializedName("fingerprint_profile")
+    val fingerprintProfile: RobustFingerprint? = null,
+    @SerializedName("fingerprint_algorithm_versions")
+    val fingerprintAlgorithmVersions: FingerprintAlgorithmVersions? = null,
+    @SerializedName("signer_device_key_id")
+    val signerDeviceKeyId: String,
+    @SerializedName("signer_device_id")
+    val signerDeviceId: String? = null,
+    @SerializedName("signer_trust_tier")
+    val signerTrustTier: String? = null,
+    @SerializedName("owner_contact")
+    val ownerContact: OwnerContact? = null,
+    @SerializedName("timestamp_references")
+    val timestampReferences: Map<String, Any>? = null,
+    @SerializedName("privacy_flags")
+    val privacyFlags: PrivacyFlags? = null,
+    @SerializedName("lifecycle_state")
+    val lifecycleState: String,
+    @SerializedName("created_at")
+    val createdAt: String,
+    @SerializedName("updated_at")
+    val updatedAt: String
 )

@@ -35,7 +35,7 @@ data class MultiAxisVerdict(
     val similarityVerdict: SimilarityVerdict? = null,
 
     // Evidence quality verdict
-    @SerializedName("evidence_quality_verdict")
+    @SerializedName("evidence_quality_verdict", alternate = ["evidence_quality"])
     val evidenceQualityVerdict: EvidenceQualityVerdict? = null,
 
     // Transformation indicators (list of inferred transformations)
@@ -156,17 +156,23 @@ enum class TransformationIndicator {
  * Matched evidence reference.
  */
 data class MatchedEvidence(
-    @SerializedName("evidence_id")
+    @SerializedName("evidence_id", alternate = ["evidenceId"])
     val evidenceId: String? = null,
 
     @SerializedName("sha256")
     val sha256: String? = null,
 
-    @SerializedName("match_type")
-    val matchType: String? = null, // "exact", "canonical", or "similarity"
+    @SerializedName("match_type", alternate = ["matchType"])
+    val matchType: String? = null,
 
-    @SerializedName("similarity_score")
+    @SerializedName("similarity_score", alternate = ["similarityScore"])
     val similarityScore: Double? = null,
+
+    @SerializedName("signer_device_key_id", alternate = ["signerDeviceKeyId"])
+    val signerDeviceKeyId: String? = null,
+
+    @SerializedName("owner_contact")
+    val ownerContact: OwnerContact? = null,
 
     @SerializedName("timestamp")
     val timestamp: String? = null

@@ -10,6 +10,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dmvp.app.data.remote.EvidenceRecord
 import com.dmvp.app.data.model.*
 import com.dmvp.app.data.repository.DMVPRepository
 import com.dmvp.app.data.repository.Result
@@ -43,7 +44,13 @@ data class VerifyUiState(
     val error: String? = null,
     val errorCode: String? = null,
     val hasResult: Boolean = false,
-    val warningMessages: List<String> = emptyList()
+    val warningMessages: List<String> = emptyList(),
+    // ── Step 10: ID search + matched evidence metadata ──
+    val matchedEvidenceRecord: EvidenceRecord? = null,
+    val searchedEvidenceRecord: EvidenceRecord? = null,
+    val evidenceIdQuery: String = "",
+    val idSearchAttempted: Boolean = false,
+    val isSearchingId: Boolean = false
 )
 
 @HiltViewModel
@@ -181,6 +188,17 @@ class VerifyViewModel @Inject constructor(
                             )
                         }
                         Log.d(TAG, "Verification complete: integrity=${verdict.integrityVerdict}, provenance=${verdict.provenanceVerdict}, similarity=${verdict.similarityVerdict}")
+
+                        // ── Step 10: Fetch full metadata from matched evidence ──
+                        val matchedId = verdict.matchedEvidenceList.firstOrNull()?.evidenceId
+                        if (!matchedId.isNullOrBlank()) {
+                            val evidenceResult = repository.getEvidenceById(matchedId)
+                            if (evidenceResult is Result.Success) {
+                                _uiState.update {
+                                    it.copy(matchedEvidenceRecord = evidenceResult.data)
+                                }
+                            }
+                        }
                     }
                     is Result.Error -> {
                         _uiState.update {
@@ -225,6 +243,62 @@ class VerifyViewModel @Inject constructor(
 
     fun setFileDirect(file: File, mediaType: String) {
         setFile(file, mediaType)
+    }
+
+    // ── Step 10: Evidence ID search ──
+
+    fun setEvidenceIdQuery(value: String) {
+        _uiState.update { it.copy(evidenceIdQuery = value, idSearchAttempted = false) }
+    }
+
+    fun searchEvidenceById() {
+        val query = uiState.value.evidenceIdQuery.trim()
+        if (query.isBlank()) {
+            _uiState.update {
+                it.copy(error = "Enter an evidence ID", errorCode = "EMPTY_QUERY")
+            }
+            return
+        }
+        viewModelScope.launch {
+            try {
+                _uiState.update {
+                    it.copy(isSearchingId = true, error = null, errorCode = null, idSearchAttempted = false, searchedEvidenceRecord = null)
+                }
+                val result = repository.getEvidenceById(query)
+                when (result) {
+                    is Result.Success -> {
+                        _uiState.update {
+                            it.copy(
+                                isSearchingId = false,
+                                searchedEvidenceRecord = result.data,
+                                idSearchAttempted = true
+                            )
+                        }
+                    }
+                    is Result.Error -> {
+                        _uiState.update {
+                            it.copy(
+                                isSearchingId = false,
+                                idSearchAttempted = true,
+                                searchedEvidenceRecord = null,
+                                error = result.message ?: "Evidence not found",
+                                errorCode = result.errorCode ?: "NOT_FOUND"
+                            )
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "searchEvidenceById failed", e)
+                _uiState.update {
+                    it.copy(
+                        isSearchingId = false,
+                        idSearchAttempted = true,
+                        error = e.message ?: "Search failed",
+                        errorCode = "SEARCH_ERROR"
+                    )
+                }
+            }
+        }
     }
 }
 

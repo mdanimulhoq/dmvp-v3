@@ -20,6 +20,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -246,6 +249,69 @@ fun VerifyScreen(
                         )
                     }
 
+                    // ── Step 10: Evidence ID Search ──
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Search by Evidence ID",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            OutlinedTextField(
+                                value = uiState.evidenceIdQuery,
+                                onValueChange = viewModel::setEvidenceIdQuery,
+                                label = { Text("Evidence ID") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                placeholder = { Text("Enter evidence UUID") }
+                            )
+                            Button(
+                                onClick = viewModel::searchEvidenceById,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !uiState.isSearchingId && uiState.evidenceIdQuery.isNotBlank()
+                            ) {
+                                if (uiState.isSearchingId) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(if (uiState.isSearchingId) "Searching..." else "Search ID")
+                            }
+                        }
+                    }
+
+                    // ── Step 10: Matched evidence metadata (from upload verify) ──
+                    val matchedRecord = uiState.matchedEvidenceRecord
+                    if (matchedRecord != null) {
+                        EvidenceMetadataCard(
+                            title = "Matched Evidence Metadata",
+                            record = matchedRecord
+                        )
+                    }
+
+                    // ── Step 10: Searched evidence metadata (from ID search) ──
+                    val searchedRecord = uiState.searchedEvidenceRecord
+                    if (searchedRecord != null) {
+                        EvidenceMetadataCard(
+                            title = "Evidence Metadata",
+                            record = searchedRecord
+                        )
+                    }
+
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
@@ -430,6 +496,110 @@ private fun java.io.File.getReadableSize(): String {
         size < 1024 * 1024 -> String.format("%.1f KB", size / 1024.0)
         size < 1024 * 1024 * 1024 -> String.format("%.1f MB", size / (1024.0 * 1024.0))
         else -> String.format("%.2f GB", size / (1024.0 * 1024.0 * 1024.0))
+    }
+}
+
+// ================================
+// Step 10: Evidence Metadata Card
+// ================================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EvidenceMetadataCard(
+    title: String,
+    record: com.dmvp.app.data.remote.EvidenceRecord
+) {
+    val clipboardManager = LocalClipboardManager.current
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        SelectionContainer {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                MetadataRow("Evidence ID", record.evidenceId, clipboardManager)
+                MetadataRow("Media type", record.mediaType, clipboardManager)
+                MetadataRow("Signer device key", record.signerDeviceKeyId, clipboardManager)
+                record.signerDeviceId?.let { MetadataRow("Signer device ID", it, clipboardManager) }
+                record.signerTrustTier?.let { MetadataRow("Trust tier", it, clipboardManager) }
+                MetadataRow("SHA-256", record.sha256Original, clipboardManager)
+                record.canonicalMediaHash?.let { MetadataRow("Canonical hash", it, clipboardManager) }
+                MetadataRow("Lifecycle", record.lifecycleState, clipboardManager)
+                MetadataRow("Created at", record.createdAt, clipboardManager)
+                MetadataRow("Updated at", record.updatedAt, clipboardManager)
+
+                // Owner contact
+                val contact = record.ownerContact
+                if (contact != null) {
+                    Divider(
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+                    Text(
+                        text = "Owner Contact",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    contact.name?.let { MetadataRow("Name", it, clipboardManager) }
+                    contact.phone?.let { MetadataRow("Phone", it, clipboardManager) }
+                    contact.address?.let { MetadataRow("Address", it, clipboardManager) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MetadataRow(
+    label: String,
+    value: String,
+    clipboardManager: androidx.compose.ui.platform.ClipboardManager
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            )
+            Text(
+                text = if (value.length > 40) value.take(20) + "..." + value.takeLast(10) else value,
+                style = MaterialTheme.typography.bodySmall.copy(
+                    fontFamily = FontFamily.Monospace
+                ),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        IconButton(
+            onClick = {
+                clipboardManager.setText(AnnotatedString(value))
+            },
+            modifier = Modifier.size(28.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ContentCopy,
+                contentDescription = "Copy $label",
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
