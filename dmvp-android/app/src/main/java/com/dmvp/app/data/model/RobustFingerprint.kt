@@ -26,7 +26,7 @@ import com.google.gson.annotations.SerializedName
 data class RobustFingerprint(
     // Perceptual hash (binary or hex string)
     @SerializedName("phash")
-    val phash: String,
+    val phash: String? = null,
 
     // Difference hash (binary or hex string)
     @SerializedName("dhash")

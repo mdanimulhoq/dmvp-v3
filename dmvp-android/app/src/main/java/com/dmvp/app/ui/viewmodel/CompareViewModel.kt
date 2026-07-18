@@ -311,16 +311,18 @@ class CompareViewModel @Inject constructor(
                             it.evidenceId == state.referenceRecord?.evidenceId
                         }
                         val score = refMatch?.similarityScore
+                        // ── Fix: Don't trust backend integrityVerdict blindly ──
+                        // Backend returns EXACT_MATCH for ANY registered photo, not just our reference.
+                        // Only trust refMatch (which checks if match is against our reference).
                         val outcome = when {
-                            v.integrityVerdict == IntegrityVerdict.EXACT_MATCH ->
-                                CompareOutcome.EXACT_MATCH
-                            v.integrityVerdict == IntegrityVerdict.CANONICAL_MATCH ->
-                                CompareOutcome.CANONICAL_MATCH
                             // Only SIMILAR_MATCH if the matched evidence IS our reference
                             refMatch != null && (
                                 v.similarityVerdict == SimilarityVerdict.STRONG_DERIVATIVE ||
-                                v.similarityVerdict == SimilarityVerdict.PROBABLE_DERIVATIVE
+                                v.similarityVerdict == SimilarityVerdict.PROBABLE_DERIVATIVE ||
+                                (refMatch.similarityScore ?: 0.0) >= 0.8
                             ) -> CompareOutcome.SIMILAR_MATCH
+                            // If no refMatch, it means backend found a different registered photo
+                            // This is NOT a match with our reference
                             else -> CompareOutcome.NO_MATCH
                         }
 
