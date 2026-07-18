@@ -129,12 +129,39 @@ fun EvidenceDetailScreen(
 
                             Field("Media type", r.mediaType)
                             Field("Signer device key", r.signerDeviceKeyId)
+                            r.signerDeviceId?.let { Field("Device ID", it) }
+                            r.signerTrustTier?.let { Field("Trust tier", it) }
                             Field("SHA-256 (original)", r.sha256Original)
                             r.canonicalMediaHash?.let { Field("Canonical hash", it) }
                             Field("Lifecycle state", r.lifecycleState)
                             Field("Created at", r.createdAt)
                             Field("Updated at", r.updatedAt)
                             r.ownerAccountId?.let { Field("Owner account", it) }
+
+                            // Owner contact
+                            val contact = r.ownerContact
+                            if (contact != null && (
+                                !contact.name.isNullOrBlank() ||
+                                !contact.phone.isNullOrBlank() ||
+                                !contact.address.isNullOrBlank()
+                            )) {
+                                Divider(modifier = Modifier.padding(vertical = 12.dp))
+                                Text(
+                                    text = "Owner contact",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                contact.name?.takeIf { it.isNotBlank() }?.let {
+                                    Field("Name", it)
+                                }
+                                contact.phone?.takeIf { it.isNotBlank() }?.let {
+                                    Field("Phone", it)
+                                }
+                                contact.address?.takeIf { it.isNotBlank() }?.let {
+                                    Field("Address", it)
+                                }
+                            }
 
                             // Timestamp references (batching, TSA, etc.)
                             val ts = r.timestampReferences
