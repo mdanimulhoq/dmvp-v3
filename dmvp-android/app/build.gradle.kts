@@ -157,6 +157,9 @@ dependencies {
 
     // Security: Android Keystore (already in Android SDK)
 
+    // ── TDD v5 Phase 1 Step 1.4: BLAKE3 hashing ──
+    implementation("app.cash.blake3:blake3-kotlin:1.0.0")
+
     // Image loading: Coil with Compose
     implementation("io.coil-kt:coil-compose:2.6.0")
 

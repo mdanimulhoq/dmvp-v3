@@ -101,6 +101,8 @@ model Evidence {
   protocolVersion                   String             @map("protocol_version") @db.VarChar(32)
   mediaType                         MediaType          @map("media_type")
   sha256Original                    String             @map("sha256_original") @db.Char(64)
+  blake3Hash                        String?            @map("blake3_hash") @db.Char(64)
+  c2paManifestHash                  String?            @map("c2pa_manifest_hash") @db.VarChar(255)
   canonicalMediaHash                String?            @map("canonical_media_hash") @db.Char(64)
 
   robustFingerprintProfile          Json               @map("robust_fingerprint_profile")
@@ -145,6 +147,8 @@ model Evidence {
 
   @@unique([signerDeviceKeyId, sha256Original], map: "uq_evidence_device_sha256")
   @@index([sha256Original], map: "idx_evidence_sha256_original")
+  @@index([blake3Hash], map: "idx_evidence_blake3_hash")
+  @@index([c2paManifestHash], map: "idx_evidence_c2pa_manifest_hash")
   @@index([canonicalMediaHash], map: "idx_evidence_canonical_media_hash")
   @@index([perceptualHash], map: "idx_evidence_perceptual_hash")
   @@index([fingerprintPrimary], map: "idx_evidence_fingerprint_primary")
@@ -166,6 +170,9 @@ model OwnershipClaim {
   claimStatement           String?              @map("claim_statement") @db.Text
   signatureAlgorithm       String               @default("SHA256withECDSA") @map("signature_algorithm") @db.VarChar(64)
   signature                String               @db.Text
+  pqSig                    String?              @map("pq_sig") @db.Text
+  pqAlgo                   String?              @map("pq_algo") @db.VarChar(64)
+  pqPubkey                 String?              @map("pq_pubkey") @db.Text
   status                   OwnershipClaimStatus @default(PENDING)
   requestId                String?              @map("request_id") @db.VarChar(191)
   createdAt                DateTime             @default(now()) @map("created_at")

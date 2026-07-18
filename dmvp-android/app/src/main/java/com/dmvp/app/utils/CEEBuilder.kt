@@ -88,8 +88,8 @@ object CEEBuilder {
                 return null
             }
 
-            // Compute SHA-256
-            val sha256Original = HashUtils.sha256(imageFile)
+            // ── TDD v5 Phase 1 Step 1.4: Compute dual hash (SHA-256 + BLAKE3) ──
+            val (sha256Original, blake3Hash) = HashUtils.dualHash(imageFile)
 
             // Compute canonical hash (optional)
             val canonicalHash = if (includeCanonicalHash) {
@@ -120,6 +120,7 @@ object CEEBuilder {
             buildCEE(
                 mediaType = "image",
                 sha256Original = sha256Original,
+                blake3Hash = blake3Hash,
                 canonicalMediaHash = canonicalHash,
                 robustFingerprint = fingerprint,
                 signerDeviceKeyId = deviceKeyId,
@@ -168,8 +169,8 @@ object CEEBuilder {
                 return null
             }
 
-            // Compute SHA-256
-            val sha256Original = HashUtils.sha256(videoFile)
+            // ── TDD v5 Phase 1 Step 1.4: Compute dual hash (SHA-256 + BLAKE3) ──
+            val (sha256Original, blake3Hash) = HashUtils.dualHash(videoFile)
 
             // Canonical hash for video (not implemented for MVP)
             val canonicalHash: String? = null // HashUtils.canonicalHash(videoFile, "video")
@@ -199,6 +200,7 @@ object CEEBuilder {
             buildCEE(
                 mediaType = "video",
                 sha256Original = sha256Original,
+                blake3Hash = blake3Hash,
                 canonicalMediaHash = canonicalHash,
                 robustFingerprint = fingerprint,
                 signerDeviceKeyId = deviceKeyId,
@@ -237,8 +239,8 @@ object CEEBuilder {
         chainParentEvidenceId: String? = null
     ): CEE? {
         return try {
-            // Compute SHA-256
-            val sha256Original = HashUtils.sha256(imageData)
+            // ── TDD v5 Phase 1 Step 1.4: Compute dual hash (SHA-256 + BLAKE3) ──
+            val (sha256Original, blake3Hash) = HashUtils.dualHash(imageData)
 
             // Canonical hash (not from bytes, would need to decode first)
             val canonicalHash: String? = null
@@ -267,6 +269,7 @@ object CEEBuilder {
             buildCEE(
                 mediaType = "image",
                 sha256Original = sha256Original,
+                blake3Hash = blake3Hash,
                 canonicalMediaHash = canonicalHash,
                 robustFingerprint = fingerprint,
                 signerDeviceKeyId = deviceKeyId,
@@ -290,6 +293,7 @@ object CEEBuilder {
     private fun buildCEE(
         mediaType: String,
         sha256Original: String,
+        blake3Hash: String?,
         canonicalMediaHash: String?,
         robustFingerprint: RobustFingerprint,
         signerDeviceKeyId: String,
@@ -323,6 +327,7 @@ object CEEBuilder {
                 evidenceId = evidenceId,
                 mediaType = mediaType,
                 sha256Original = sha256Original,
+                blake3Hash = blake3Hash,
                 canonicalMediaHash = canonicalMediaHash,
                 robustFingerprintProfile = robustFingerprint,
                 fingerprintAlgorithmVersions = fingerprintAlgorithmVersions,
@@ -371,7 +376,8 @@ object CEEBuilder {
         captureTimeClaim: String? = null,
         geolocationClaim: GeolocationClaim? = null,
         chainParentEvidenceId: String? = null,
-        canonicalMediaHash: String? = null
+        canonicalMediaHash: String? = null,
+        blake3Hash: String? = null
     ): CEE? {
         return try {
             val attestationSummary = DeviceKeyManager.getAttestationSummary()
@@ -387,6 +393,7 @@ object CEEBuilder {
             buildCEE(
                 mediaType = mediaType,
                 sha256Original = sha256Original,
+                blake3Hash = blake3Hash,
                 canonicalMediaHash = canonicalMediaHash,
                 robustFingerprint = robustFingerprint,
                 signerDeviceKeyId = signerDeviceKeyId,
@@ -437,6 +444,7 @@ object CEEBuilder {
             buildCEE(
                 mediaType = mediaType,
                 sha256Original = sha256Original ?: "0000000000000000000000000000000000000000000000000000000000000000",
+                blake3Hash = null,
                 canonicalMediaHash = null,
                 robustFingerprint = minimalFingerprint,
                 signerDeviceKeyId = signerDeviceKeyId,

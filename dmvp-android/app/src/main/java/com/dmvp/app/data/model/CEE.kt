@@ -33,6 +33,12 @@ data class CEE(
     @SerializedName("sha256_original")
     val sha256Original: String,
 
+    // ── TDD v5 Phase 1 Step 1.4: BLAKE3 hash ──
+    // BLAKE3 hash of the original file bytes (64-character hex)
+    // 3-5× faster than SHA-256, used as internal primary key
+    @SerializedName("blake3_hash")
+    val blake3Hash: String? = null,
+
     // Optional canonical media hash (64-character hex) for deterministic normalization
     @SerializedName("canonical_media_hash")
     val canonicalMediaHash: String? = null,
