@@ -5,8 +5,8 @@
 
 package com.dmvp.app.data.repository
 
+import com.dmvp.app.data.model.MatchedEvidence
 import com.dmvp.app.data.model.SearchResponse
-import com.dmvp.app.data.model.SearchResult
 import com.dmvp.app.data.remote.ApiService
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -26,7 +26,7 @@ class SearchRepository @Inject constructor(
         vectorType: String = "siglip",
         limit: Int = 20,
         threshold: Float = 0.7f
-    ): List<SearchResult> {
+    ): List<MatchedEvidence> {
         val requestBody = mapOf(
             "query_type" to "text",
             "query" to query,
@@ -36,11 +36,7 @@ class SearchRepository @Inject constructor(
         )
 
         val response = apiService.crossModalSearch(requestBody)
-        return if (response.success) {
-            response.results
-        } else {
-            emptyList()
-        }
+        return response.matchedEvidence ?: emptyList()
     }
 
     /**
@@ -51,7 +47,7 @@ class SearchRepository @Inject constructor(
         vectorType: String = "siglip",
         limit: Int = 20,
         threshold: Float = 0.7f
-    ): List<SearchResult> {
+    ): List<MatchedEvidence> {
         val imageBody = imageData.toRequestBody("image/*".toMediaType())
         val multipartBody = MultipartBody.Part.createFormData("file", "image.jpg", imageBody)
 
@@ -63,11 +59,7 @@ class SearchRepository @Inject constructor(
         )
 
         val response = apiService.crossModalSearchWithImage(requestBody, multipartBody)
-        return if (response.success) {
-            response.results
-        } else {
-            emptyList()
-        }
+        return response.matchedEvidence ?: emptyList()
     }
 
     /**
