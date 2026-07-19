@@ -114,7 +114,7 @@ object Blake3 {
             if (blockIdx == 0) blockFlags = blockFlags or CHUNK_START
             if (blockIdx == blockCount - 1) blockFlags = blockFlags or CHUNK_END
             
-            state = compress(state, block, chunkIndex, blockEnd.toLong(), blockFlags)
+            state = compress(state, block, chunkIndex, blockEnd, blockFlags)
         }
         
         return state.toByteArray()
