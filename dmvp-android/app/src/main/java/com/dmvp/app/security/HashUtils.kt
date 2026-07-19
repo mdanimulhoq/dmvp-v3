@@ -8,7 +8,6 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import kotlin.math.min
-import app.cash.blake3.Blake3
 
 object HashUtils {
 
@@ -83,16 +82,8 @@ object HashUtils {
      * Compute BLAKE3 hash of input stream.
      */
     fun blake3(inputStream: InputStream): String {
-        val hasher = Blake3()
-        val buffer = ByteArray(BUFFER_SIZE)
-
-        while (true) {
-            val bytesRead = inputStream.read(buffer)
-            if (bytesRead == -1) break
-            hasher.update(buffer, 0, bytesRead)
-        }
-
-        return hasher.finalize().toHexString()
+        val data = inputStream.readBytes()
+        return Blake3.hash(data).toHexString()
     }
 
     /**
@@ -114,21 +105,9 @@ object HashUtils {
         require(file.isFile) { "Path is not a file: ${file.absolutePath}" }
         require(file.canRead()) { "File cannot be read: ${file.absolutePath}" }
 
-        val sha256Digest = MessageDigest.getInstance(SHA_256)
-        val blake3Hasher = Blake3()
-        val buffer = ByteArray(BUFFER_SIZE)
-
-        FileInputStream(file).use { inputStream ->
-            while (true) {
-                val bytesRead = inputStream.read(buffer)
-                if (bytesRead == -1) break
-                sha256Digest.update(buffer, 0, bytesRead)
-                blake3Hasher.update(buffer, 0, bytesRead)
-            }
-        }
-
-        val sha256Hash = sha256Digest.digest().toHexString()
-        val blake3Hash = blake3Hasher.finalize().toHexString()
+        val data = FileInputStream(file).use { it.readBytes() }
+        val sha256Hash = sha256(data)
+        val blake3Hash = blake3(data)
         return Pair(sha256Hash, blake3Hash)
     }
 
