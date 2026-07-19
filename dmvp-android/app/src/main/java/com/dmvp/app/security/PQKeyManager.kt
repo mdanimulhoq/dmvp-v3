@@ -74,13 +74,9 @@ object PQKeyManager {
      */
     fun hasMLDSA65Key(): Boolean {
         // In production, check secure storage for ML-DSA-65 key
-        // For now, check SharedPreferences
-        val prefs = android.app.Application.getProcessName().let {
-            android.preference.PreferenceManager.getDefaultSharedPreferences(
-                android.app.ActivityThread.currentApplication()
-            )
-        }
-        return prefs.contains(ML_DSA_65_ALIAS)
+        // For now, return false (would need proper context injection)
+        Log.w(TAG, "ML-DSA-65 key check requires secure storage integration")
+        return false
     }
 
     /**
@@ -97,8 +93,8 @@ object PQKeyManager {
         return HybridKeyPair(
             classicalPublicKey = classicalKeyPair.public,
             classicalPrivateKey = classicalKeyPair.private,
-            pqPublicKey = pqKeyPair.public,
-            pqPrivateKey = pqKeyPair.private
+            pqPublicKey = pqKeyPair.first,
+            pqPrivateKey = pqKeyPair.second
         )
     }
 

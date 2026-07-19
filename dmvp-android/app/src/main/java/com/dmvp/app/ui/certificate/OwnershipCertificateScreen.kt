@@ -11,8 +11,6 @@
 package com.dmvp.app.ui.certificate
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -33,9 +31,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dmvp.app.data.model.OwnershipCertificate
-import com.google.zxing.BarcodeFormat
-import com.google.zxing.common.BitMatrix
-import com.google.zxing.qrcode.QRCodeWriter
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -359,24 +354,37 @@ private fun QRCodeDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Generate QR Code
-                val qrBitmap = remember { generateQRCode(certificateId) }
-
-                if (qrBitmap != null) {
-                    Image(
-                        bitmap = qrBitmap.asImageBitmap(),
+                // QR Code placeholder - zxing library not available
+                Box(
+                    modifier = Modifier
+                        .size(200.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.QrCode,
                         contentDescription = "QR Code",
-                        modifier = Modifier.size(200.dp)
-                    )
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Text(
-                        "Scan to verify certificate",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        modifier = Modifier.size(100.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+
+                Spacer(Modifier.height(16.dp))
+
+                Text(
+                    "Certificate ID: ${certificateId.take(16)}...",
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                Text(
+                    "QR code generation requires zxing library. Add implementation to build.gradle.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    textAlign = TextAlign.Center
+                )
             }
         },
         confirmButton = {
@@ -385,24 +393,4 @@ private fun QRCodeDialog(
             }
         }
     )
-}
-
-private fun generateQRCode(content: String): Bitmap? {
-    return try {
-        val writer = QRCodeWriter()
-        val bitMatrix: BitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, 512, 512)
-        val width = bitMatrix.width
-        val height = bitMatrix.height
-        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
-
-        for (x in 0 until width) {
-            for (y in 0 until height) {
-                bitmap.setPixel(x, y, if (bitMatrix.get(x, y)) Color.BLACK else Color.WHITE)
-            }
-        }
-
-        bitmap
-    } catch (e: Exception) {
-        null
-    }
 }
