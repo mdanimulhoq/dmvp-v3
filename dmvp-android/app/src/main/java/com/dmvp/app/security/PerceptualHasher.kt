@@ -5,12 +5,6 @@ import android.graphics.BitmapFactory
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
-import org.opencv.android.Utils
-import org.opencv.core.Core
-import org.opencv.core.CvType
-import org.opencv.core.Mat
-import org.opencv.core.Size
-import org.opencv.imgproc.Imgproc
 import java.io.File
 
 /**
@@ -96,41 +90,62 @@ object PerceptualHasher {
         val resized = resize(grayscale, PHASH_SIZE, PHASH_SIZE)
         
         // Convert to float matrix for DCT
-        val mat = Mat(PHASH_SIZE, PHASH_SIZE, CvType.CV_32F)
+        val pixels = Array(PHASH_SIZE) { FloatArray(PHASH_SIZE) }
         for (y in 0 until PHASH_SIZE) {
             for (x in 0 until PHASH_SIZE) {
                 val pixel = resized.getPixel(x, y)
-                val gray = (0.299 * android.graphics.Color.red(pixel) +
+                pixels[y][x] = (0.299 * android.graphics.Color.red(pixel) +
                            0.587 * android.graphics.Color.green(pixel) +
                            0.114 * android.graphics.Color.blue(pixel)).toFloat()
-                mat.put(y, x, gray)
             }
         }
         
-        // Apply DCT
-        Imgproc.dct(mat, mat)
+        // Apply DCT (pure Kotlin implementation)
+        val dct = applyDCT(pixels, PHASH_SIZE)
         
         // Extract low-frequency components (top-left 8x8)
         val hashBits = StringBuilder()
         var median = 0f
         for (y in 0 until 8) {
             for (x in 0 until 8) {
-                median += mat.get(y, x)[0]
+                median += dct[y][x]
             }
         }
         median /= 64f
         
         for (y in 0 until 8) {
             for (x in 0 until 8) {
-                hashBits.append(if (mat.get(y, x)[0] > median) "1" else "0")
+                hashBits.append(if (dct[y][x] > median) "1" else "0")
             }
         }
         
-        mat.release()
         resized.recycle()
         grayscale.recycle()
         
         return bitsToHex(hashBits.toString())
+    }
+    
+    /**
+     * 2D Discrete Cosine Transform (DCT-II)
+     */
+    private fun applyDCT(f: Array<FloatArray>, n: Int): Array<FloatArray> {
+        val result = Array(n) { FloatArray(n) }
+        
+        for (u in 0 until n) {
+            for (v in 0 until n) {
+                var sum = 0f
+                for (i in 0 until n) {
+                    for (j in 0 until n) {
+                        sum += f[i][j] * 
+                               kotlin.math.cos(((2 * i + 1) * u * Math.PI) / (2 * n)) *
+                               kotlin.math.cos(((2 * j + 1) * v * Math.PI) / (2 * n))
+                    }
+                }
+                result[u][v] = sum
+            }
+        }
+        
+        return result
     }
     
     /**

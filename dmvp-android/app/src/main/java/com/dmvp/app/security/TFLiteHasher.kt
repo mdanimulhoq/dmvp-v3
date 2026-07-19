@@ -1,7 +1,6 @@
 package com.dmvp.app.security
 
 import android.content.Context
-import org.tensorflow.lite.Interpreter
 import java.io.FileInputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
@@ -14,11 +13,27 @@ import java.nio.channels.FileChannel
  * Optional feature - user can enable/disable in settings.
  * 
  * Why TFLite: Privacy - sensitive documents hashed without sending to server
+ * 
+ * NOTE: This is a stub implementation. To enable TFLite support:
+ * 1. Add to build.gradle: implementation("org.tensorflow:tensorflow-lite:2.16.1")
+ * 2. Add TFLite model to assets folder
+ * 3. Call initialize() on app startup
  */
 object TFLiteHasher {
     
-    private var interpreter: Interpreter? = null
+    private var interpreter: Any? = null
     private var isInitialized = false
+    private var tfliteAvailable = false
+    
+    init {
+        // Check if TFLite is available at runtime
+        tfliteAvailable = try {
+            Class.forName("org.tensorflow.lite.Interpreter")
+            true
+        } catch (e: ClassNotFoundException) {
+            false
+        }
+    }
     
     /**
      * Initialize TFLite model (call once on app start if enabled)
@@ -27,13 +42,27 @@ object TFLiteHasher {
      * @return true if initialization successful
      */
     fun initialize(context: Context, modelPath: String = "perceptual_hash.tflite"): Boolean {
+        if (!tfliteAvailable) {
+            android.util.Log.w("TFLiteHasher", "TensorFlow Lite not available. Add dependency to enable.")
+            return false
+        }
+        
         return try {
             val model = loadModelFile(context, modelPath)
-            val options = Interpreter.Options().apply {
-                setNumThreads(4)
-                setUseNNAPI(true) // Use Neural Networks API for acceleration
-            }
-            interpreter = Interpreter(model, options)
+            
+            // Use reflection to create Interpreter
+            val interpreterClass = Class.forName("org.tensorflow.lite.Interpreter")
+            val optionsClass = Class.forName("org.tensorflow.lite.Interpreter\$Options")
+            
+            val options = optionsClass.getDeclaredConstructor().newInstance()
+            optionsClass.getMethod("setNumThreads", Int::class.java).invoke(options, 4)
+            optionsClass.getMethod("setUseNNAPI", Boolean::class.java).invoke(options, true)
+            
+            interpreter = interpreterClass.getDeclaredConstructor(
+                MappedByteBuffer::class.java,
+                optionsClass
+            ).newInstance(model, options)
+            
             isInitialized = true
             true
         } catch (e: Exception) {
@@ -46,7 +75,7 @@ object TFLiteHasher {
      * Check if TFLite hasher is available and initialized
      */
     fun isAvailable(): Boolean {
-        return isInitialized && interpreter != null
+        return tfliteAvailable && isInitialized && interpreter != null
     }
     
     /**
@@ -61,9 +90,10 @@ object TFLiteHasher {
             // Prepare input tensor (assuming model expects 224x224 RGB)
             val input = preprocessImage(imageData, 224, 224)
             
-            // Run inference
+            // Run inference using reflection
             val output = Array(1) { FloatArray(256) } // 256-dim embedding
-            interpreter?.run(input, output)
+            interpreter?.javaClass?.getMethod("run", Any::class.java, Any::class.java)
+                ?.invoke(interpreter, input, output)
             
             // Convert embedding to hash
             embeddingToHash(output[0])
@@ -85,9 +115,10 @@ object TFLiteHasher {
             // Prepare input tensor
             val input = preprocessImage(imageData, 224, 224)
             
-            // Run inference
+            // Run inference using reflection
             val output = Array(1) { FloatArray(512) } // 512-dim semantic embedding
-            interpreter?.run(input, output)
+            interpreter?.javaClass?.getMethod("run", Any::class.java, Any::class.java)
+                ?.invoke(interpreter, input, output)
             
             // Convert embedding to hash
             embeddingToHash(output[0])
@@ -101,7 +132,11 @@ object TFLiteHasher {
      * Release TFLite resources
      */
     fun release() {
-        interpreter?.close()
+        try {
+            interpreter?.javaClass?.getMethod("close")?.invoke(interpreter)
+        } catch (e: Exception) {
+            android.util.Log.e("TFLiteHasher", "Failed to release TFLite", e)
+        }
         interpreter = null
         isInitialized = false
     }
@@ -157,10 +192,12 @@ object TFLiteHasher {
         
         // Convert to hex
         val hex = StringBuilder()
-        for (i in hashBits.indices step 4) {
+        var i = 0
+        while (i < hashBits.length) {
             val end = minOf(i + 4, hashBits.length)
             val chunk = hashBits.substring(i, end).padEnd(4, '0')
-            hex.append(Integer.toHexString(Integer.parseInt(chunk, 2)))
+            hex.append(Integer.parseInt(chunk, 2).toString(16))
+            i += 4
         }
         
         return hex.toString()
