@@ -10,7 +10,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
-import com.dmvp.app.data.remote.SearchResponse
 import com.dmvp.app.data.remote.RelatedEvidenceResponse
 import com.dmvp.app.data.repository.DMVPRepository
 import com.dmvp.app.data.repository.Result
@@ -44,10 +43,6 @@ data class SearchUiState(
     val maxCandidates: Int = 100,
     val searchResults: SearchResponse? = null,
     val relatedResults: RelatedEvidenceResponse? = null,
-    val matchedEvidence: List<MatchedEvidence> = emptyList(),
-    val totalMatches: Int = 0,
-    val bestMatchType: String = "none",
-    val bestScore: Double = 0.0,
     val progress: Float = 0f,
     val hasSearched: Boolean = false,
     val error: String? = null,
@@ -180,7 +175,7 @@ class SearchViewModel @Inject constructor(
                         searchResults = null,
                         error = null,
                         errorCode = null,
-                        matchedEvidence = emptyList()
+                        searchResults = null
                     )
                 }
 
@@ -201,10 +196,6 @@ class SearchViewModel @Inject constructor(
                             it.copy(
                                 isLoading = false,
                                 searchResults = response,
-                                matchedEvidence = response.matchedEvidence ?: emptyList(),
-                                totalMatches = response.totalMatches,
-                                bestMatchType = response.bestMatchType ?: "none",
-                                bestScore = response.bestScore,
                                 progress = 1f,
                                 hasSearched = true,
                                 error = null,
@@ -212,7 +203,7 @@ class SearchViewModel @Inject constructor(
                                 expandedMatchIndex = null
                             )
                         }
-                        Log.d(TAG, "Search complete: found ${response.totalMatches} matches")
+                        Log.d(TAG, "Search complete: found ${response.resultsCount} matches")
                     }
                     is Result.Error -> {
                         _uiState.update {
@@ -288,7 +279,6 @@ class SearchViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 searchResults = null,
-                matchedEvidence = emptyList(),
                 hasSearched = false,
                 selectedEvidenceId = null,
                 relatedResults = null,
@@ -326,17 +316,20 @@ class SearchViewModel @Inject constructor(
     }
 }
 
-fun SearchUiState.hasResults(): Boolean = hasSearched && matchedEvidence.isNotEmpty()
-fun SearchUiState.hasExactMatch(): Boolean = bestMatchType == "exact"
-fun SearchUiState.getBestMatchId(): String? = matchedEvidence.firstOrNull()?.evidenceId
+fun SearchUiState.hasResults(): Boolean = hasSearched && (searchResults?.resultsCount ?: 0) > 0
+fun SearchUiState.hasExactMatch(): Boolean = searchResults?.results?.any { it.similarity >= 0.99f } ?: false
+fun SearchUiState.getBestMatchId(): String? = searchResults?.results?.maxByOrNull { it.similarity }?.evidenceId
 
 fun SearchUiState.getBestMatchDescription(): String {
-    return when (bestMatchType) {
-        "exact" -> "Exact match found (SHA-256 identical)"
-        "canonical" -> "Canonical match found"
-        "similarity" -> "Similarity match (score: ${String.format("%.2f", bestScore * 100)}%)"
-        "none" -> "No matches found"
-        else -> "Unknown match type"
+    val results = searchResults?.results ?: return "No matches found"
+    if (results.isEmpty()) return "No matches found"
+    
+    val bestMatch = results.maxByOrNull { it.similarity } ?: return "No matches found"
+    return when {
+        bestMatch.similarity >= 0.99f -> "Exact match found (SHA-256 identical)"
+        bestMatch.similarity >= 0.90f -> "Canonical match found"
+        bestMatch.similarity >= 0.70f -> "Similarity match (score: ${String.format("%.2f", bestMatch.similarity * 100)}%)"
+        else -> "Weak match (score: ${String.format("%.2f", bestMatch.similarity * 100)}%)"
     }
 }
 

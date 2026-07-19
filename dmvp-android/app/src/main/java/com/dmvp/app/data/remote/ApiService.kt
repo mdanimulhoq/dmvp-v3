@@ -2,6 +2,7 @@ package com.dmvp.app.data.remote
 
 import com.dmvp.app.data.model.*
 import com.google.gson.annotations.SerializedName
+import okhttp3.MultipartBody
 import retrofit2.http.*
 
 interface ApiService {
@@ -242,14 +243,6 @@ data class SearchRequest(
     @SerializedName("filters") val filters: Map<String, String>? = null,
     @SerializedName("maxResults") val maxResults: Int = 10,
     @SerializedName("maxCandidates") val maxCandidates: Int = 100
-)
-
-data class SearchResponse(
-    @SerializedName("results") val matchedEvidence: List<MatchedEvidence>? = emptyList(),
-    @SerializedName("total_matches") val totalMatches: Int = 0,
-    @SerializedName("similarity_verdict") val bestMatchType: String? = null,
-    @SerializedName("best_score") val bestScore: Double = 0.0,
-    @SerializedName("search_metadata") val searchMetadata: Map<String, Any>? = null
 )
 
 data class RelatedEvidenceResponse(
