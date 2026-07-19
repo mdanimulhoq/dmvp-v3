@@ -77,7 +77,7 @@ fun VerdictCard(verdict: VerificationVerdict) {
         "exact_match" -> Triple(Color(0xFF4CAF50), Icons.Default.CheckCircle, "Exact Match")
         "near_copy" -> Triple(Color(0xFFFF9800), Icons.Default.Warning, "Near Copy")
         "derivative" -> Triple(Color(0xFFFF9800), Icons.Default.Transform, "Derivative")
-        "similar" -> Triple(Color(0xFF2196F3), Icons.Default.Comparison, "Similar")
+        "similar" -> Triple(Color(0xFF2196F3), Icons.Default.Compare, "Similar")
         "possible_ai_derivative" -> Triple(Color(0xFFF44336), Icons.Default.SmartToy, "Possible AI Generated")
         else -> Triple(Color(0xFF9E9E9E), Icons.Default.Help, "No Match")
     }
