@@ -136,9 +136,9 @@ object PerceptualHasher {
                 var sum = 0f
                 for (i in 0 until n) {
                     for (j in 0 until n) {
-                        sum += f[i][j] * 
-                               kotlin.math.cos(((2 * i + 1) * u * Math.PI) / (2 * n)) *
-                               kotlin.math.cos(((2 * j + 1) * v * Math.PI) / (2 * n))
+                        val cosI = kotlin.math.cos(((2 * i + 1) * u * Math.PI) / (2 * n)).toFloat()
+                        val cosJ = kotlin.math.cos(((2 * j + 1) * v * Math.PI) / (2 * n)).toFloat()
+                        sum += f[i][j] * cosI * cosJ
                     }
                 }
                 result[u][v] = sum
