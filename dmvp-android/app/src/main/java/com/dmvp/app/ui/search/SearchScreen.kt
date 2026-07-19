@@ -21,7 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.dmvp.app.data.model.SearchResult
+import com.dmvp.app.data.model.MatchedEvidence
 import com.dmvp.app.viewmodel.SearchViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 
@@ -126,7 +126,7 @@ fun SearchScreen(
 }
 
 @Composable
-fun SearchResultCard(result: SearchResult) {
+fun SearchResultCard(result: MatchedEvidence) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -139,11 +139,11 @@ fun SearchResultCard(result: SearchResult) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    text = "Evidence ID: ${result.evidenceId.take(8)}...",
+                    text = "Evidence ID: ${result.evidenceId?.take(8) ?: "N/A"}...",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Text(
-                    text = "${(result.similarity * 100).toInt()}%",
+                    text = "${((result.similarityScore ?: 0.0) * 100).toInt()}%",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -152,24 +152,23 @@ fun SearchResultCard(result: SearchResult) {
             Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Type: ${result.mediaType}",
+                text = "Match Type: ${result.matchType ?: "Unknown"}",
                 style = MaterialTheme.typography.bodySmall
             )
 
-            Text(
-                text = "Device: ${result.deviceModel ?: "Unknown"}",
-                style = MaterialTheme.typography.bodySmall
-            )
+            result.sha256?.let { sha ->
+                Text(
+                    text = "SHA256: ${sha.take(16)}...",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
 
-            Text(
-                text = "Trust: ${result.trustTier}",
-                style = MaterialTheme.typography.bodySmall
-            )
-
-            Text(
-                text = "Created: ${result.createdAt}",
-                style = MaterialTheme.typography.bodySmall
-            )
+            result.signerDeviceKeyId?.let { keyId ->
+                Text(
+                    text = "Signer: $keyId",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
         }
     }
 }

@@ -7,7 +7,7 @@ package com.dmvp.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dmvp.app.data.model.SearchResult
+import com.dmvp.app.data.model.MatchedEvidence
 import com.dmvp.app.data.repository.SearchRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,8 +23,8 @@ class SearchViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery
 
-    private val _searchResults = MutableStateFlow<List<SearchResult>>(emptyList())
-    val searchResults: StateFlow<List<SearchResult>> = _searchResults
+    private val _searchResults = MutableStateFlow<List<MatchedEvidence>>(emptyList())
+    val searchResults: StateFlow<List<MatchedEvidence>> = _searchResults
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
