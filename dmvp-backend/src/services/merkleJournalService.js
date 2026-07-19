@@ -1,20 +1,28 @@
 /**
  * @file src/services/merkleJournalService.js
- * @description DMVP v4.0 — Merkle Journal + Multi-Tier Timestamping Service
+ * @description DMVP v4.0 — IPLD-Compatible Merkle Journal + Multi-Tier Timestamping Service
  *
- * Batches registrations into Merkle trees, anchors root hash to:
+ * Batches registrations into IPLD-compatible Merkle-DAG, anchors root CID to:
  *   T1: RFC 3161 TSA (DigiCert/Entrust) — legally recognized
  *   T2a: Sigstore Rekor — append-only transparency log
  *   T2b: OpenTimestamps — Bitcoin anchoring
  *   T2c: Arbitrum/Optimism (EVM L2) — EU enterprise (eIDAS2)
  *
+ * Uses IPLD (InterPlanetary Linked Data) standards:
+ *   - @ipld/dag-cbor for node encoding
+ *   - multiformats for content-addressed hashing
+ *   - CID (Content Identifier) for node references
+ *
  * @module services/merkleJournalService
- * @version dmvp-v4.0.0
+ * @version dmvp-v4.1.0
  */
 
 'use strict';
 
 const crypto = require('crypto');
+const dagCBOR = require('@ipld/dag-cbor');
+const { CID } = require('multiformats/cid');
+const { sha256: mfSha256 } = require('multiformats/hashes/sha2');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Constants
@@ -29,11 +37,11 @@ const TIMESTAMP_TIERS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Merkle Tree Builder
+// IPLD-Compatible Merkle-DAG Builder
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Compute SHA-256 hash of data
+ * Compute SHA-256 hash of data (legacy hex format for backward compatibility)
  * @param {string|Buffer} data
  * @returns {string} Hex-encoded hash
  */
@@ -42,26 +50,62 @@ function sha256(data) {
 }
 
 /**
- * Build Merkle tree from leaf hashes
- * @param {string[]} leafHashes - Array of hex-encoded leaf hashes
- * @returns {{ root: string, layers: string[][], depth: number }}
+ * Compute IPLD-compatible CID from data
+ * @param {any} data - Data to encode (will be CBOR encoded)
+ * @returns {Promise<string>} CID string
  */
-function buildMerkleTree(leafHashes) {
+async function computeCID(data) {
+  const encoded = dagCBOR.encode(data);
+  const hash = await mfSha256.digest(encoded);
+  const cid = CID.create(1, dagCBOR.code, hash);
+  return cid.toString();
+}
+
+/**
+ * Build IPLD-compatible Merkle-DAG from leaf data
+ * Each node is a CBOR-encoded structure with CID references
+ * @param {string[]} leafHashes - Array of hex-encoded leaf hashes
+ * @returns {Promise<{ root: string, rootCID: string, layers: string[][], nodes: Map, depth: number }>}
+ */
+async function buildMerkleTree(leafHashes) {
   if (leafHashes.length === 0) {
     throw new Error('Cannot build Merkle tree from empty leaves');
   }
 
   const layers = [leafHashes.slice()];
+  const nodes = new Map(); // Store node data for IPLD traversal
   let currentLayer = leafHashes.slice();
+  let nodeIndex = 0;
+
+  // Create leaf nodes with CIDs
+  for (const hash of currentLayer) {
+    const nodeData = { type: 'leaf', hash, index: nodeIndex++ };
+    const cid = await computeCID(nodeData);
+    nodes.set(hash, { data: nodeData, cid });
+  }
 
   while (currentLayer.length > 1) {
     const nextLayer = [];
     
     for (let i = 0; i < currentLayer.length; i += 2) {
       if (i + 1 < currentLayer.length) {
-        // Hash pair
+        // Hash pair (legacy format)
         const combined = currentLayer[i] + currentLayer[i + 1];
-        nextLayer.push(sha256(combined));
+        const hash = sha256(combined);
+        
+        // Create IPLD node with CID references to children
+        const nodeData = {
+          type: 'branch',
+          left: currentLayer[i],
+          right: currentLayer[i + 1],
+          leftCID: nodes.get(currentLayer[i])?.cid || null,
+          rightCID: nodes.get(currentLayer[i + 1])?.cid || null,
+          index: nodeIndex++,
+        };
+        const cid = await computeCID(nodeData);
+        nodes.set(hash, { data: nodeData, cid });
+        
+        nextLayer.push(hash);
       } else {
         // Odd node — promote
         nextLayer.push(currentLayer[i]);
@@ -72,25 +116,30 @@ function buildMerkleTree(leafHashes) {
     currentLayer = nextLayer;
   }
 
+  const root = currentLayer[0];
+  const rootCID = nodes.get(root)?.cid || await computeCID({ type: 'root', hash: root });
+
   return {
-    root: currentLayer[0],
+    root,
+    rootCID,
     layers,
+    nodes,
     depth: layers.length - 1,
   };
 }
 
 /**
- * Generate Merkle proof for a leaf
+ * Generate IPLD-compatible Merkle proof for a leaf
  * @param {string[]} leafHashes - All leaf hashes
  * @param {number} leafIndex - Index of the leaf to prove
- * @returns {{ leaf: string, proof: string[], path: number[] }}
+ * @returns {Promise<{ leaf: string, leafCID: string, proof: Array<{hash: string, cid: string}>, path: number[], rootCID: string }>}
  */
-function generateMerkleProof(leafHashes, leafIndex) {
+async function generateMerkleProof(leafHashes, leafIndex) {
   if (leafIndex < 0 || leafIndex >= leafHashes.length) {
     throw new Error('Leaf index out of bounds');
   }
 
-  const { layers } = buildMerkleTree(leafHashes);
+  const { layers, nodes, rootCID } = await buildMerkleTree(leafHashes);
   const proof = [];
   const path = [];
   let currentIndex = leafIndex;
@@ -101,7 +150,12 @@ function generateMerkleProof(leafHashes, leafIndex) {
     const siblingIndex = isRight ? currentIndex - 1 : currentIndex + 1;
 
     if (siblingIndex < layer.length) {
-      proof.push(layer[siblingIndex]);
+      const siblingHash = layer[siblingIndex];
+      const siblingNode = nodes.get(siblingHash);
+      proof.push({
+        hash: siblingHash,
+        cid: siblingNode?.cid || null,
+      });
       path.push(isRight ? 0 : 1); // 0 = left, 1 = right
     }
 
@@ -110,24 +164,26 @@ function generateMerkleProof(leafHashes, leafIndex) {
 
   return {
     leaf: leafHashes[leafIndex],
+    leafCID: nodes.get(leafHashes[leafIndex])?.cid || null,
     proof,
     path,
+    rootCID,
   };
 }
 
 /**
- * Verify Merkle proof
+ * Verify IPLD-compatible Merkle proof
  * @param {string} leaf - Leaf hash
- * @param {string[]} proof - Sibling hashes
+ * @param {Array<{hash: string, cid: string}>} proof - Sibling hashes with CIDs
  * @param {number[]} path - Path indicators (0=left, 1=right)
- * @param {string} root - Expected root hash
- * @returns {boolean}
+ * @param {string} rootCID - Expected root CID
+ * @returns {Promise<boolean>}
  */
-function verifyMerkleProof(leaf, proof, path, root) {
+async function verifyMerkleProof(leaf, proof, path, rootCID) {
   let currentHash = leaf;
 
   for (let i = 0; i < proof.length; i++) {
-    const sibling = proof[i];
+    const sibling = proof[i].hash;
     const isRight = path[i] === 1;
     
     const combined = isRight 
@@ -137,19 +193,21 @@ function verifyMerkleProof(leaf, proof, path, root) {
     currentHash = sha256(combined);
   }
 
-  return currentHash === root;
+  // Verify the final hash matches the root CID
+  const computedRootCID = await computeCID({ type: 'root', hash: currentHash });
+  return computedRootCID === rootCID;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Batch Builder
+// IPLD-Compatible Batch Builder
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Create batch from registration records
+ * Create IPLD-compatible batch from registration records
  * @param {object[]} registrations - Array of registration records
- * @returns {{ batchId: string, leafHashes: string[], tree: object, createdAt: string }}
+ * @returns {Promise<{ batchId: string, leafHashes: string[], tree: object, createdAt: string }>}
  */
-function createBatch(registrations) {
+async function createBatch(registrations) {
   if (registrations.length === 0) {
     throw new Error('Cannot create empty batch');
   }
@@ -165,7 +223,7 @@ function createBatch(registrations) {
     return sha256(canonical);
   });
 
-  const tree = buildMerkleTree(leafHashes);
+  const tree = await buildMerkleTree(leafHashes);
 
   return {
     batchId,
@@ -373,12 +431,13 @@ async function submitToEvmL2(rootHash) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Anchor batch to all timestamp tiers
- * @param {object} batch - Batch with Merkle tree
- * @returns {object} Multi-tier timestamp attestations
+ * Anchor IPLD-compatible batch to all timestamp tiers
+ * @param {object} batch - Batch with IPLD Merkle-DAG
+ * @returns {Promise<object>} Multi-tier timestamp attestations with CIDs
  */
 async function anchorBatch(batch) {
   const rootHash = batch.tree.root;
+  const rootCID = batch.tree.rootCID;
 
   // Request all timestamps in parallel
   const [t1, t2a, t2b, t2c] = await Promise.all([
@@ -391,8 +450,10 @@ async function anchorBatch(batch) {
   return {
     batch_id: batch.batchId,
     merkle_root: rootHash,
+    merkle_root_cid: rootCID, // IPLD CID for interoperability
     tree_depth: batch.tree.depth,
     leaf_count: batch.leafHashes.length,
+    ipld_compatible: true,
     timestamps: {
       t1_rfc3161: t1,
       t2a_sigstore: t2a,
@@ -413,13 +474,16 @@ module.exports = {
   BATCH_SIZE,
   TIMESTAMP_TIERS,
   
-  // Merkle tree
+  // Legacy functions (backward compatibility)
   sha256,
+  
+  // IPLD-compatible Merkle-DAG
+  computeCID,
   buildMerkleTree,
   generateMerkleProof,
   verifyMerkleProof,
   
-  // Batch
+  // IPLD-compatible Batch
   createBatch,
   
   // Individual timestamp tiers
@@ -428,6 +492,6 @@ module.exports = {
   submitToOpenTimestamps,
   submitToEvmL2,
   
-  // Multi-tier anchoring
+  // Multi-tier anchoring (IPLD-compatible)
   anchorBatch,
 };
