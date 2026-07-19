@@ -217,6 +217,32 @@ interface ApiService {
     suspend fun detectAIDerivative(
         @Part file: MultipartBody.Part
     ): Map<String, @JvmSuppressWildcards Any>
+
+    // ============================
+    // Phase 4: Claims and Ownership API (v4)
+    // ============================
+
+    @POST("v4/claims")
+    suspend fun submitOwnershipClaim(
+        @Body request: com.dmvp.app.data.model.OwnershipClaimRequest
+    ): com.dmvp.app.data.model.OwnershipClaimResponse
+
+    @GET("v4/claims/{uaid}")
+    suspend fun getAssetClaims(
+        @Path("uaid") uaid: String
+    ): com.dmvp.app.data.model.AssetClaimsResponse
+
+    @POST("v4/claims/{claim_id}/dispute")
+    suspend fun disputeClaim(
+        @Path("claim_id") claimId: String,
+        @Body request: com.dmvp.app.data.model.ClaimDisputeRequest
+    ): Map<String, @JvmSuppressWildcards Any>
+
+    @POST("v4/claims/{claim_id}/transfer")
+    suspend fun transferOwnership(
+        @Path("claim_id") claimId: String,
+        @Body request: com.dmvp.app.data.model.OwnershipTransferRequest
+    ): Map<String, @JvmSuppressWildcards Any>
 }
 
 // ================================
