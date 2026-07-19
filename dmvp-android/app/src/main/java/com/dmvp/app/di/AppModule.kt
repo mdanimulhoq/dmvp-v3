@@ -16,6 +16,8 @@ import android.content.SharedPreferences
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import com.dmvp.app.data.remote.ApiService
+import com.dmvp.app.data.remote.RetrofitClient
 import com.dmvp.app.data.repository.DMVPRepository
 import dagger.Module
 import dagger.Provides
@@ -30,6 +32,17 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
+
+    /**
+     * Provide ApiService (Retrofit client).
+     */
+    @Singleton
+    @Provides
+    fun provideApiService(
+        @ApplicationContext context: Context
+    ): ApiService {
+        return RetrofitClient.getInstance(context)
+    }
 
     /**
      * Provide repository.
