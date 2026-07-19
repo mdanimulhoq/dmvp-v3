@@ -102,19 +102,25 @@ object Blake3 {
     }
     
     private fun hashChunk(chunk: ByteArray, chunkIndex: Long, keyIndex: Int, flags: Int, cv: IntArray): ByteArray {
-        val blockCount = (chunk.size + BLOCK_LEN - 1) / BLOCK_LEN
+        val blockCount = maxOf(1, (chunk.size + BLOCK_LEN - 1) / BLOCK_LEN)
         var state = cv.copyOf()
         
         for (blockIdx in 0 until blockCount) {
             val blockStart = blockIdx * BLOCK_LEN
             val blockEnd = minOf(blockStart + BLOCK_LEN, chunk.size)
-            val block = chunk.copyOfRange(blockStart, blockEnd)
+            // Pad block to full BLOCK_LEN (64 bytes) with zeros
+            val block = ByteArray(BLOCK_LEN)
+            val copyLen = blockEnd - blockStart
+            if (copyLen > 0) {
+                System.arraycopy(chunk, blockStart, block, 0, copyLen)
+            }
             
             var blockFlags = flags
             if (blockIdx == 0) blockFlags = blockFlags or CHUNK_START
             if (blockIdx == blockCount - 1) blockFlags = blockFlags or CHUNK_END
             
-            state = compress(state, block, chunkIndex, blockEnd, blockFlags)
+            val dataLen = if (blockIdx == blockCount - 1) blockEnd - blockStart else BLOCK_LEN
+            state = compress(state, block, chunkIndex, dataLen, blockFlags)
         }
         
         return state.toByteArray()
