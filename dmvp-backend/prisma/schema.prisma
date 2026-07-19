@@ -299,16 +299,55 @@ model LineageTransition {
 }
 
 // ═══════════════════════════════════════════════════════
-// NEW: User model for JWT authentication
+// User model for authentication (Email + Password + Gmail OAuth + OTP)
 // ═══════════════════════════════════════════════════════
+enum UserSubscriptionTier {
+  FREE @map("free")
+  PRO @map("pro")
+  ENTERPRISE @map("enterprise")
+}
+
 model User {
   id            String   @id @default(uuid())
   email         String   @unique
-  password_hash String
+  passwordHash  String?  @map("password_hash")
   name          String?
-  created_at    DateTime @default(now())
-  updated_at    DateTime @updatedAt
+  
+  // Email verification
+  emailVerified Boolean  @default(false) @map("email_verified")
+  emailVerificationToken String? @map("email_verification_token") @db.VarChar(255)
+  emailVerificationSentAt DateTime? @map("email_verification_sent_at")
+  
+  // OTP for login
+  otpCode       String?  @map("otp_code") @db.VarChar(6)
+  otpExpiresAt  DateTime? @map("otp_expires_at")
+  otpAttempts   Int      @default(0) @map("otp_attempts")
+  
+  // Google OAuth
+  googleId      String?  @unique @map("google_id") @db.VarChar(255)
+  googleAccessToken String? @map("google_access_token") @db.Text
+  googleRefreshToken String? @map("google_refresh_token") @db.Text
+  
+  // Subscription
+  subscriptionTier UserSubscriptionTier @default(FREE) @map("subscription_tier")
+  zkProofsUsed    Int   @default(0) @map("zk_proofs_used")
+  zkProofsLimit   Int   @default(0) @map("zk_proofs_limit")
+  
+  // Device tracking
+  deviceId      String?  @map("device_id")
+  lastLoginAt   DateTime? @map("last_login_at")
+  lastLoginIp   String?  @map("last_login_ip") @db.VarChar(64)
+  
+  // Account status
+  isActive      Boolean  @default(true) @map("is_active")
+  deactivatedAt DateTime? @map("deactivated_at")
+  
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
+  @@index([email], map: "idx_users_email")
+  @@index([googleId], map: "idx_users_google_id")
+  @@index([subscriptionTier], map: "idx_users_subscription_tier")
   @@map("users")
 }
 
