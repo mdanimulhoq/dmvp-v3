@@ -243,6 +243,50 @@ interface ApiService {
         @Path("claim_id") claimId: String,
         @Body request: com.dmvp.app.data.model.OwnershipTransferRequest
     ): Map<String, @JvmSuppressWildcards Any>
+
+    // ============================
+    // Authentication Endpoints
+    // ============================
+
+    @POST("auth/signup")
+    suspend fun signUp(
+        @Body request: com.dmvp.app.data.model.AuthModels.SignUpRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @POST("auth/signin")
+    suspend fun signIn(
+        @Body request: com.dmvp.app.data.model.AuthModels.SignInRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @POST("auth/verify-otp")
+    suspend fun verifyOTP(
+        @Body request: com.dmvp.app.data.model.AuthModels.VerifyOTPRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @POST("auth/resend-otp")
+    suspend fun resendOTP(
+        @Body request: com.dmvp.app.data.model.AuthModels.ResendOTPRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @POST("auth/verify-email")
+    suspend fun verifyEmail(
+        @Body request: com.dmvp.app.data.model.AuthModels.VerifyEmailRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @POST("auth/resend-verification")
+    suspend fun resendVerification(
+        @Body request: com.dmvp.app.data.model.AuthModels.ResendOTPRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @POST("auth/google")
+    suspend fun googleSignIn(
+        @Body request: com.dmvp.app.data.model.AuthModels.GoogleSignInRequest
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
+
+    @GET("auth/me")
+    suspend fun getCurrentUser(
+        @Header("Authorization") auth: String
+    ): com.dmvp.app.data.model.AuthModels.AuthResponse
 }
 
 // ================================
