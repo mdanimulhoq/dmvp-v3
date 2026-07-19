@@ -43,6 +43,7 @@ const searchRoutes = safeLoadRoute('search', './routes/search');
 const devicesRoutes = safeLoadRoute('devices', './routes/devices');
 const ownershipRoutes = safeLoadRoute('ownership', './routes/ownership');
 const assetsRoutes = safeLoadRoute('assets', './routes/assets');
+const searchV5Routes = safeLoadRoute('searchV5', './routes/searchV5');
 
 const app = express();
 
@@ -275,6 +276,9 @@ if (ownershipRoutes) {
 }
 if (assetsRoutes) {
   app.use(`${API_BASE_PATH}/assets`, assetsRoutes);
+}
+if (searchV5Routes) {
+  app.use(`${API_BASE_PATH}/v5/search`, searchV5Routes);
 }
 
 app.use((req, res, next) => {

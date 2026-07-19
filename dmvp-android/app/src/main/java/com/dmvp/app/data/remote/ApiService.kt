@@ -176,6 +176,46 @@ interface ApiService {
     suspend fun getPolicyVersion(
         @Header("Authorization") auth: String
     ): PolicyVersionResponse
+
+    // ============================
+    // Phase 3: Cross-Modal Search Endpoints (v5)
+    // ============================
+
+    @POST("v5/search/cross-modal")
+    suspend fun crossModalSearch(
+        @Body request: Map<String, @JvmSuppressWildcards Any>
+    ): com.dmvp.app.data.model.SearchResponse
+
+    @Multipart
+    @POST("v5/search/cross-modal")
+    suspend fun crossModalSearchWithImage(
+        @PartMap request: Map<String, @JvmSuppressWildcards Any>,
+        @Part file: MultipartBody.Part
+    ): com.dmvp.app.data.model.SearchResponse
+
+    @GET("v5/search/stats")
+    suspend fun getSearchStats(): Map<String, @JvmSuppressWildcards Any>
+
+    // ============================
+    // Phase 3: 10-Layer Verification Endpoints (v4)
+    // ============================
+
+    @Multipart
+    @POST("v4/verify")
+    suspend fun verifyAsset(
+        @Part file: MultipartBody.Part
+    ): com.dmvp.app.data.model.VerificationVerdict
+
+    @POST("v4/verify/{evidence_id}")
+    suspend fun verifyByEvidenceId(
+        @Path("evidence_id") evidenceId: String
+    ): com.dmvp.app.data.model.VerificationVerdict
+
+    @Multipart
+    @POST("l8/detect")
+    suspend fun detectAIDerivative(
+        @Part file: MultipartBody.Part
+    ): Map<String, @JvmSuppressWildcards Any>
 }
 
 // ================================
