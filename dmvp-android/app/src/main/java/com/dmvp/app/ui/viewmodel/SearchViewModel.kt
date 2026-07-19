@@ -10,7 +10,6 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.*
-import com.dmvp.app.data.remote.SearchResponse
 import com.dmvp.app.data.remote.RelatedEvidenceResponse
 import com.dmvp.app.data.repository.DMVPRepository
 import com.dmvp.app.data.repository.Result

@@ -36,26 +36,20 @@ data class SearchResult(
  * Search response from backend
  */
 data class SearchResponse(
-    @SerializedName("success")
-    val success: Boolean,
-
-    @SerializedName("query_type")
-    val queryType: String,
-
-    @SerializedName("vector_type")
-    val vectorType: String,
-
-    @SerializedName("dimensions")
-    val dimensions: Int,
-
-    @SerializedName("threshold")
-    val threshold: Float,
-
-    @SerializedName("results_count")
-    val resultsCount: Int,
-
     @SerializedName("results")
-    val results: List<SearchResult>
+    val matchedEvidence: List<MatchedEvidence>? = emptyList(),
+
+    @SerializedName("total_matches")
+    val totalMatches: Int = 0,
+
+    @SerializedName("similarity_verdict")
+    val bestMatchType: String? = null,
+
+    @SerializedName("best_score")
+    val bestScore: Double = 0.0,
+
+    @SerializedName("search_metadata")
+    val searchMetadata: Map<String, Any>? = null
 )
 
 /**
