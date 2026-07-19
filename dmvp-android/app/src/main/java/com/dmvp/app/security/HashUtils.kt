@@ -8,11 +8,14 @@ import java.io.FileInputStream
 import java.io.InputStream
 import java.security.MessageDigest
 import kotlin.math.min
+import app.cash.blake3.Blake3
 
 object HashUtils {
 
     private const val SHA_256 = "SHA-256"
     private const val BUFFER_SIZE = 8192
+
+    // ── SHA-256 methods (existing) ──
 
     fun sha256(data: ByteArray): String {
         val digest = MessageDigest.getInstance(SHA_256)
@@ -44,6 +47,89 @@ object HashUtils {
         }
 
         return digest.digest().toHexString()
+    }
+
+    // ── TDD v5 Phase 1 Step 1.4: BLAKE3 methods ──
+
+    /**
+     * Compute BLAKE3 hash of byte array.
+     * BLAKE3 is 3-5× faster than SHA-256, used as internal primary key.
+     */
+    fun blake3(data: ByteArray): String {
+        return Blake3.hash(data).toHexString()
+    }
+
+    /**
+     * Compute BLAKE3 hash of string.
+     */
+    fun blake3(input: String): String {
+        return blake3(input.toByteArray(Charsets.UTF_8))
+    }
+
+    /**
+     * Compute BLAKE3 hash of file.
+     */
+    fun blake3(file: File): String {
+        require(file.exists()) { "File does not exist: ${file.absolutePath}" }
+        require(file.isFile) { "Path is not a file: ${file.absolutePath}" }
+        require(file.canRead()) { "File cannot be read: ${file.absolutePath}" }
+
+        return FileInputStream(file).use { inputStream ->
+            blake3(inputStream)
+        }
+    }
+
+    /**
+     * Compute BLAKE3 hash of input stream.
+     */
+    fun blake3(inputStream: InputStream): String {
+        val hasher = Blake3()
+        val buffer = ByteArray(BUFFER_SIZE)
+
+        while (true) {
+            val bytesRead = inputStream.read(buffer)
+            if (bytesRead == -1) break
+            hasher.update(buffer, 0, bytesRead)
+        }
+
+        return hasher.finalize().toHexString()
+    }
+
+    /**
+     * Compute dual hash (SHA-256 + BLAKE3) for data.
+     * SHA-256: legal/TSA/court use
+     * BLAKE3: internal primary, fast re-verification
+     */
+    fun dualHash(data: ByteArray): Pair<String, String> {
+        val sha256Hash = sha256(data)
+        val blake3Hash = blake3(data)
+        return Pair(sha256Hash, blake3Hash)
+    }
+
+    /**
+     * Compute dual hash for file.
+     */
+    fun dualHash(file: File): Pair<String, String> {
+        require(file.exists()) { "File does not exist: ${file.absolutePath}" }
+        require(file.isFile) { "Path is not a file: ${file.absolutePath}" }
+        require(file.canRead()) { "File cannot be read: ${file.absolutePath}" }
+
+        val sha256Digest = MessageDigest.getInstance(SHA_256)
+        val blake3Hasher = Blake3()
+        val buffer = ByteArray(BUFFER_SIZE)
+
+        FileInputStream(file).use { inputStream ->
+            while (true) {
+                val bytesRead = inputStream.read(buffer)
+                if (bytesRead == -1) break
+                sha256Digest.update(buffer, 0, bytesRead)
+                blake3Hasher.update(buffer, 0, bytesRead)
+            }
+        }
+
+        val sha256Hash = sha256Digest.digest().toHexString()
+        val blake3Hash = blake3Hasher.finalize().toHexString()
+        return Pair(sha256Hash, blake3Hash)
     }
 
     fun canonicalHash(file: File, mediaType: String): String? {

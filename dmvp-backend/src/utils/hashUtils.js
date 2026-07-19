@@ -6,9 +6,12 @@
  *
  * All functions are synchronous and stateless, with comprehensive input validation
  * and error handling.
+ *
+ * TDD v5 Phase 1 Step 1.3: Dual hash support (SHA-256 + BLAKE3)
  */
 
 const crypto = require('crypto');
+const { blake3 } = require('hash-wasm');
 
 // Import sharp for image processing only if available (optional dependency)
 let sharp = null;
@@ -60,6 +63,43 @@ function computeSHA256Sync(data) {
     return crypto.createHash('sha256').update(data).digest('hex');
   }
   throw new TypeError('computeSHA256Sync: input must be Buffer or string');
+}
+
+// ── TDD v5 Phase 1 Step 1.3: BLAKE3 Hashing ──
+/**
+ * Compute BLAKE3 hash of input data.
+ * BLAKE3 is 3-5× faster than SHA-256 on multi-core systems.
+ * Used as internal primary key for fast re-verification.
+ *
+ * @param {Buffer|string} input - Data to hash. If string, treated as UTF-8.
+ * @returns {Promise<string>} 64-character lowercase hex digest.
+ * @throws {TypeError} If input is not a Buffer or string.
+ */
+async function computeBLAKE3(input) {
+  let data;
+  if (typeof input === 'string') {
+    data = Buffer.from(input, 'utf8');
+  } else if (Buffer.isBuffer(input)) {
+    data = input;
+  } else {
+    throw new TypeError('computeBLAKE3: input must be Buffer or string');
+  }
+  return blake3(data);
+}
+
+/**
+ * Compute dual hash (SHA-256 + BLAKE3) for an asset.
+ * SHA-256: legal/TSA/court use (legally recognized)
+ * BLAKE3: internal primary, fast re-verification (3-5× faster)
+ *
+ * @param {Buffer|string} input - Data to hash.
+ * @returns {Promise<Object>} { sha256: string, blake3: string }
+ * @throws {TypeError} If input is invalid.
+ */
+async function computeDualHash(input) {
+  const sha256 = computeSHA256Sync(input);
+  const blake3Hash = await computeBLAKE3(input);
+  return { sha256, blake3: blake3Hash };
 }
 
 /**
@@ -254,6 +294,8 @@ function isHexString(str) {
 module.exports = {
   computeSHA256,
   computeSHA256Sync,  // ── Step 7.5 Fix: Added for Android registration ──
+  computeBLAKE3,      // ── TDD v5 Phase 1 Step 1.3: BLAKE3 ──
+  computeDualHash,    // ── TDD v5 Phase 1 Step 1.3: Dual hash ──
   computeCanonicalMediaHash,
   hammingDistance,
   compareFingerprintProfiles,
