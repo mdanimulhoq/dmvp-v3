@@ -144,6 +144,7 @@ model Evidence {
   derivedChildren                   Evidence[]         @relation("EvidenceChain")
   ownershipClaims                   OwnershipClaim[]
   verificationRecords               VerificationRecord[]
+  fingerprintVectors                FingerprintVector[]
 
   @@unique([signerDeviceKeyId, sha256Original], map: "uq_evidence_device_sha256")
   @@index([sha256Original], map: "idx_evidence_sha256_original")
@@ -309,4 +310,51 @@ model User {
   updated_at    DateTime @updatedAt
 
   @@map("users")
+}
+
+// ═══════════════════════════════════════════════════════
+// Phase 3: Vector Database for Hybrid Search
+// ═══════════════════════════════════════════════════════
+
+enum VectorType {
+  SIGLIP @map("siglip")
+  SSCD @map("sscd")
+  CLAP @map("clap")
+  CODEXEMBED @map("codexembed")
+}
+
+model ModelRegistry {
+  modelId          String     @id @default(uuid()) @map("model_id")
+  modelName        String     @unique @map("model_name") @db.VarChar(191)
+  vectorType       VectorType @map("vector_type")
+  dimensions       Int
+  version          String     @db.VarChar(64)
+  description      String?    @db.Text
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  fingerprintVectors FingerprintVector[]
+
+  @@map("model_registry")
+}
+
+model FingerprintVector {
+  vectorId         String     @id @default(uuid()) @map("vector_id")
+  evidenceId       String     @map("evidence_id")
+  modelId          String     @map("model_id")
+  vectorType       VectorType @map("vector_type")
+  // Note: vector field will be managed via raw SQL with pgvector
+  // Prisma doesn't natively support vector types
+  dimensions       Int
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  evidence         Evidence   @relation(fields: [evidenceId], references: [evidenceId], onDelete: Cascade)
+  model            ModelRegistry @relation(fields: [modelId], references: [modelId])
+
+  @@unique([evidenceId, modelId], map: "uq_fingerprint_vector_evidence_model")
+  @@index([vectorType], map: "idx_fingerprint_vector_type")
+  @@index([evidenceId], map: "idx_fingerprint_vector_evidence")
+  @@map("fingerprint_vectors")
 }
