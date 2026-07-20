@@ -35,7 +35,7 @@ import com.dmvp.app.ui.components.MediaPickerResult
 import com.dmvp.app.ui.components.MediaPickerType
 import com.dmvp.app.ui.components.VerdictCard
 import com.dmvp.app.ui.components.VerdictCardMode
-import com.dmvp.app.ui.theme.DMVPTheme
+import com.dmvp.app.ui.theme.DmvpTheme
 import com.dmvp.app.ui.theme.Error
 import com.dmvp.app.ui.theme.Success
 import com.dmvp.app.ui.viewmodel.VerifyViewModel
@@ -610,7 +610,7 @@ private fun MetadataRow(
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun VerifyScreenPreview() {
-    DMVPTheme {
+    DmvpTheme {
         VerifyScreen(
             onNavigateBack = {},
             onNavigateToVerdictDetail = {}

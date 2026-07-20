@@ -1,78 +1,121 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/theme/Color.kt
  *
- * Color definitions for DMVP v3.0 Android app.
- * Dark theme by default with deep purple primary and cyan accent.
- * Provides both light and dark color palettes.
+ * UDOVP V2 Design System — Cyberpunk/terminal aesthetic
+ * Primary: Cyan (#00FFB4) — action, success, highlights
+ * Secondary: Purple (#A78BFA) — secondary actions, accents
+ * Background: Near-black (#08090D) with subtle gradients
+ *
+ * Reference: docs/ui-v2.html
  */
 
 package com.dmvp.app.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary colors (deep purple)
-val DeepPurple900 = Color(0xFF1A0033)
-val DeepPurple800 = Color(0xFF2D004D)
-val DeepPurple700 = Color(0xFF400066)
-val DeepPurple600 = Color(0xFF5C0088)
-val DeepPurple500 = Color(0xFF7A00B3)
-val DeepPurple400 = Color(0xFF9A00D9)
-val DeepPurple200 = Color(0xFFC499E0)
-val DeepPurple100 = Color(0xFFE1CCF0)
+// ═══════════════════════════════════════════════════════
+// Primary Palette — Cyan
+// ═══════════════════════════════════════════════════════
+val CyanPrimary = Color(0xFF00FFB4)
+val CyanDim = Color(0xFF00B386)
+val CyanMuted = Color(0xFF00E5A0)
 
-// Accent colors (cyan)
-val CyanBright = Color(0xFF00E5FF)
-val Cyan400 = Color(0xFF00B8D4)
-val Cyan100 = Color(0xFFB3F5FF)
-val Cyan700 = Color(0xFF00838F)
+// ═══════════════════════════════════════════════════════
+// Secondary Palette — Purple
+// ═══════════════════════════════════════════════════════
+val PurplePrimary = Color(0xFFA78BFA)
+val PurpleDeep = Color(0xFF7C3AED)
+val PurpleMuted = Color(0xFF8B5CF6)
 
-// Neutral / surface colors for dark theme
-val DarkSurface = Color(0xFF121212)
-val DarkSurfaceVariant = Color(0xFF1E1E1E)
-val DarkSurfaceContainer = Color(0xFF2A2A2A)
-val DarkSurfaceContainerHigh = Color(0xFF333333)
+// ═══════════════════════════════════════════════════════
+// Accent Colors
+// ═══════════════════════════════════════════════════════
+val PinkAccent = Color(0xFFF472B6)
+val AmberAccent = Color(0xFFFBBF24)
+val RedAccent = Color(0xFFEF4444)
 
-// Neutral / surface colors for light theme
-val LightSurface = Color(0xFFF5F5F5)
-val LightSurfaceVariant = Color(0xFFE8E8E8)
-val LightSurfaceContainer = Color(0xFFDDDDDD)
+// ═══════════════════════════════════════════════════════
+// Background & Surface — Dark Theme
+// ═══════════════════════════════════════════════════════
+val BgBase = Color(0xFF08090D)
+val SurfaceGlass = Color(0xFF0E1018)
+val SurfaceCard = Color(0xFF141826)
+val SurfaceElevated = Color(0xFF1A1F2E)
 
-// Text colors
-val TextPrimaryDark = Color(0xFFE0E0E0)
-val TextSecondaryDark = Color(0xFFB0B0B0)
-val TextTertiaryDark = Color(0xFF808080)
+// ═══════════════════════════════════════════════════════
+// Border & Divider
+// ═══════════════════════════════════════════════════════
+val BorderDefault = Color(0x0FFFFFFF)
+val BorderHighlight = Color(0x4000FFB4)
+val DividerSubtle = Color(0x10FFFFFF)
 
-val TextPrimaryLight = Color(0xFF1A1A1A)
-val TextSecondaryLight = Color(0xFF4D4D4D)
-val TextTertiaryLight = Color(0xFF808080)
+// ═══════════════════════════════════════════════════════
+// Text Colors
+// ═══════════════════════════════════════════════════════
+val TextPrimary = Color(0xFFE2E8F0)
+val TextSecondary = Color(0xFF94A3B8)
+val TextMuted = Color(0xFF4A5568)
+val TextDim = Color(0xFF2D3748)
 
-// Status / feedback colors
-val Success = Color(0xFF4CAF50)
-val Warning = Color(0xFFFFC107)
-val Error = Color(0xFFE53935)
-val Info = Color(0xFF2196F3)
+// ═══════════════════════════════════════════════════════
+// Status / Feedback
+// ═══════════════════════════════════════════════════════
+val StatusSuccess = Color(0xFF00FFB4)
+val StatusWarning = Color(0xFFFBBF24)
+val StatusError = Color(0xFFEF4444)
+val StatusInfo = Color(0xFFA78BFA)
 
-// Divider / border
-val DividerDark = Color(0xFF3D3D3D)
-val DividerLight = Color(0xFFCCCCCC)
+// ═══════════════════════════════════════════════════════
+// Badge Backgrounds (with 10-15% opacity)
+// ═══════════════════════════════════════════════════════
+val BadgeSuccessBg = Color(0x1A00FFB4)
+val BadgeWarningBg = Color(0x1AFBBF24)
+val BadgeErrorBg = Color(0x1AEF4444)
+val BadgeInfoBg = Color(0x1AA78BFA)
 
-// Trust tier badges
-val TierABadge = Color(0xFF00E676)
-val TierBBadge = Color(0xFFFFD740)
-val TierCBadge = Color(0xFFFF6D00)
-val TierDBadge = Color(0xFFE53935)
+// ═══════════════════════════════════════════════════════
+// Trust Tier Colors
+// ═══════════════════════════════════════════════════════
+val TierA = Color(0xFF00FFB4)
+val TierB = Color(0xFFA78BFA)
+val TierC = Color(0xFFFBBF24)
+val TierD = Color(0xFFEF4444)
 
-// Evidence quality colors
-val HighQuality = Success
-val ModerateQuality = Warning
-val LowQuality = Error
+// ═══════════════════════════════════════════════════════
+// Gradient Colors
+// ═══════════════════════════════════════════════════════
+val GradientStart = Color(0xFF00FFB4)
+val GradientEnd = Color(0xFFA78BFA)
+val GradientButton = listOf(Color(0xFF00FFB4), Color(0xFF00B386))
+val GradientAccent = listOf(Color(0xFF00FFB4), Color(0xFFA78BFA))
 
-// Verdict colors
-val IntegrityMatch = Success
-val IntegrityNoMatch = Error
-val SimilarityStrong = Color(0xFF00BCD4)
-val SimilarityWeak = Color(0xFFFFA726)
-val SimilarityNone = Error
-
-// Background for dark theme
-val DarkBackground = Color(0xFF0A0A0A)
+// ═══════════════════════════════════════════════════════
+// Backward-compatible aliases (for existing screens)
+// These will be removed once all screens migrate to V2 components
+// ═══════════════════════════════════════════════════════
+@Deprecated("Use CyanPrimary instead") val CyanBright = CyanPrimary
+@Deprecated("Use PurpleDeep instead") val DeepPurple900 = PurpleDeep
+@Deprecated("Use PurpleDeep instead") val DeepPurple800 = PurpleDeep
+@Deprecated("Use PurplePrimary instead") val DeepPurple700 = PurplePrimary
+@Deprecated("Use PurpleMuted instead") val DeepPurple600 = PurpleMuted
+@Deprecated("Use PurplePrimary instead") val DeepPurple500 = PurplePrimary
+@Deprecated("Use PurplePrimary instead") val DeepPurple400 = PurplePrimary
+@Deprecated("Use PurplePrimary instead") val DeepPurple200 = PurplePrimary
+@Deprecated("Use PurplePrimary instead") val DeepPurple100 = PurplePrimary
+@Deprecated("Use SurfaceCard instead") val DarkSurface = SurfaceCard
+@Deprecated("Use SurfaceElevated instead") val DarkSurfaceVariant = SurfaceElevated
+@Deprecated("Use SurfaceElevated instead") val DarkSurfaceContainer = SurfaceElevated
+@Deprecated("Use SurfaceElevated instead") val DarkSurfaceContainerHigh = SurfaceElevated
+@Deprecated("Use TextPrimary instead") val TextPrimaryDark = TextPrimary
+@Deprecated("Use TextSecondary instead") val TextSecondaryDark = TextSecondary
+@Deprecated("Use TextMuted instead") val TextTertiaryDark = TextMuted
+@Deprecated("Use BgBase instead") val DarkBackground = BgBase
+@Deprecated("Use BorderDefault instead") val DividerDark = BorderDefault
+@Deprecated("Use StatusSuccess instead") val Success = StatusSuccess
+@Deprecated("Use StatusWarning instead") val Warning = StatusWarning
+@Deprecated("Use StatusError instead") val Error = StatusError
+@Deprecated("Use StatusInfo instead") val Info = StatusInfo
+@Deprecated("Use TierA instead") val TierABadge = TierA
+@Deprecated("Use TierB instead") val TierBBadge = TierB
+@Deprecated("Use TierC instead") val TierCBadge = TierC
+@Deprecated("Use TierD instead") val TierDBadge = TierD

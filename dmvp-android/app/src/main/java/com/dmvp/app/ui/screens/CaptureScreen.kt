@@ -561,7 +561,7 @@ private fun File.getReadableSize(): String {
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun CaptureScreenPreview() {
-    DMVPTheme {
+    DmvpTheme {
         CaptureScreen(
             onNavigateBack = {},
             onNavigateToRegister = { _, _ -> }

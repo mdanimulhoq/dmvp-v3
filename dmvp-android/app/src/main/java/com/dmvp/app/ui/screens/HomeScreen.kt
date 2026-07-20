@@ -313,7 +313,7 @@ private fun StatItem(label: String, value: String) {
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun HomeScreenPreview() {
-    DMVPTheme {
+    DmvpTheme {
         HomeScreen(
             onNavigateToCapture = {},
             onNavigateToVerify = {},

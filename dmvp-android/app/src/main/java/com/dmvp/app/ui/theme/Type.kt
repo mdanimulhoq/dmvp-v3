@@ -1,9 +1,11 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/theme/Type.kt
  *
- * Typography and shape definitions for DMVP v3.0 Android app.
- * Clean, professional, forensic-style typography with good readability.
- * Uses Material3 typography and shapes with customizations.
+ * UDOVP V2 Typography
+ * Display: Outfit (modern, geometric sans-serif)
+ * Mono: Space Mono (terminal/code aesthetic)
+ *
+ * Reference: docs/ui-v2.html
  */
 
 package com.dmvp.app.ui.theme
@@ -15,153 +17,204 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-val MonospaceFont = FontFamily.Monospace
+// ═══════════════════════════════════════════════════════
+// Font Families
+// ═══════════════════════════════════════════════════════
 
-val DMVPTypography = Typography(
+// Outfit — primary display font (download from Google Fonts or use system fallback)
+val OutfitFont = FontFamily.Default // Replace with Font(R.font.outfit_regular) when fonts added
+
+// Space Mono — monospace for code, labels, hashes
+val SpaceMonoFont = FontFamily.Monospace
+
+// ═══════════════════════════════════════════════════════
+// Typography Scale
+// ═══════════════════════════════════════════════════════
+
+val DmvpTypography = Typography(
+    // Display — Splash screen title
     displayLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 57.sp,
-        lineHeight = 64.sp,
-        letterSpacing = (-0.25).sp,
-    ),
-    displayMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 45.sp,
-        lineHeight = 52.sp,
-        letterSpacing = 0.sp,
-    ),
-    displaySmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Bold,
-        fontSize = 36.sp,
-        lineHeight = 44.sp,
-        letterSpacing = 0.sp,
-    ),
-    headlineLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.Black,
         fontSize = 32.sp,
         lineHeight = 40.sp,
-        letterSpacing = 0.sp,
+        letterSpacing = (-0.5).sp,
     ),
-    headlineMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.SemiBold,
+    displayMedium = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.Black,
         fontSize = 28.sp,
         lineHeight = 36.sp,
         letterSpacing = 0.sp,
     ),
-    headlineSmall = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
+    displaySmall = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.Bold,
         fontSize = 24.sp,
         lineHeight = 32.sp,
         letterSpacing = 0.sp,
     ),
-    titleLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
+
+    // Headline — Screen titles
+    headlineLarge = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.Bold,
         fontSize = 22.sp,
         lineHeight = 28.sp,
+        letterSpacing = (-0.3).sp,
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.sp,
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
+        letterSpacing = 0.sp,
+    ),
+
+    // Title — Card titles, section headers
+    titleLarge = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp,
         letterSpacing = 0.sp,
     ),
     titleMedium = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 24.sp,
-        letterSpacing = 0.15.sp,
-    ),
-    titleSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = OutfitFont,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
         lineHeight = 20.sp,
         letterSpacing = 0.1.sp,
     ),
+    titleSmall = TextStyle(
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.Medium,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.1.sp,
+    ),
+
+    // Body — Main text content
     bodyLarge = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = OutfitFont,
         fontWeight = FontWeight.Normal,
         fontSize = 16.sp,
         lineHeight = 24.sp,
-        letterSpacing = 0.5.sp,
+        letterSpacing = 0.2.sp,
     ),
     bodyMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = OutfitFont,
         fontWeight = FontWeight.Normal,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.25.sp,
+        letterSpacing = 0.2.sp,
     ),
     bodySmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = OutfitFont,
         fontWeight = FontWeight.Normal,
         fontSize = 12.sp,
         lineHeight = 16.sp,
-        letterSpacing = 0.4.sp,
+        letterSpacing = 0.3.sp,
     ),
+
+    // Label — Buttons, nav items, badges
     labelLarge = TextStyle(
-        fontFamily = FontFamily.Default,
-        fontWeight = FontWeight.Medium,
+        fontFamily = OutfitFont,
+        fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        letterSpacing = 0.1.sp,
+        letterSpacing = 0.5.sp,
     ),
     labelMedium = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = SpaceMonoFont,
         fontWeight = FontWeight.Medium,
         fontSize = 12.sp,
         lineHeight = 16.sp,
         letterSpacing = 0.5.sp,
     ),
     labelSmall = TextStyle(
-        fontFamily = FontFamily.Default,
+        fontFamily = SpaceMonoFont,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp,
-        letterSpacing = 0.5.sp,
+        fontSize = 10.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 1.sp,
     ),
 )
 
-// Custom shapes used by MaterialTheme in Theme.kt
-val Shapes = Shapes(
+// ═══════════════════════════════════════════════════════
+// Shapes
+// ═══════════════════════════════════════════════════════
+
+val DmvpShapes = Shapes(
     extraSmall = RoundedCornerShape(4.dp),
     small = RoundedCornerShape(8.dp),
     medium = RoundedCornerShape(12.dp),
-    large = RoundedCornerShape(16.dp),
-    extraLarge = RoundedCornerShape(28.dp)
+    large = RoundedCornerShape(14.dp),
+    extraLarge = RoundedCornerShape(20.dp),
 )
 
-val ForensicTextStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
-    fontWeight = FontWeight.Normal,
-    fontSize = 13.sp,
-    letterSpacing = 0.2.sp,
-)
+// ═══════════════════════════════════════════════════════
+// Custom Text Styles
+// ═══════════════════════════════════════════════════════
 
-val VerdictScoreStyle = TextStyle(
-    fontFamily = FontFamily.Default,
+// Section header — "QUICK ACTIONS", "BLOCKCHAIN ANCHORS"
+val SectionHeaderStyle = TextStyle(
+    fontFamily = SpaceMonoFont,
     fontWeight = FontWeight.Bold,
-    fontSize = 24.sp,
-    letterSpacing = 0.sp,
+    fontSize = 10.sp,
+    letterSpacing = 2.5.sp,
+    color = CyanPrimary,
 )
 
-val TrustTierBadgeStyle = TextStyle(
-    fontFamily = FontFamily.Default,
-    fontWeight = FontWeight.Bold,
-    fontSize = 12.sp,
-    letterSpacing = 0.5.sp,
-)
-
+// Hash / UAID display
 val HashDisplayStyle = TextStyle(
-    fontFamily = FontFamily.Monospace,
+    fontFamily = SpaceMonoFont,
     fontWeight = FontWeight.Normal,
     fontSize = 12.sp,
     letterSpacing = 0.5.sp,
+    color = TextPrimary,
+)
+
+// Stat value — large numbers
+val StatValueStyle = TextStyle(
+    fontFamily = OutfitFont,
+    fontWeight = FontWeight.ExtraBold,
+    fontSize = 24.sp,
+    lineHeight = 28.sp,
+    color = TextPrimary,
+)
+
+// Stat label
+val StatLabelStyle = TextStyle(
+    fontFamily = SpaceMonoFont,
+    fontWeight = FontWeight.Medium,
+    fontSize = 10.sp,
+    letterSpacing = 1.sp,
+    color = TextMuted,
+)
+
+// Badge text
+val BadgeTextStyle = TextStyle(
+    fontFamily = SpaceMonoFont,
+    fontWeight = FontWeight.Bold,
+    fontSize = 10.sp,
+    letterSpacing = 0.5.sp,
+)
+
+// Nav item label
+val NavLabelStyle = TextStyle(
+    fontFamily = SpaceMonoFont,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 9.sp,
+    letterSpacing = 1.sp,
 )

@@ -1,15 +1,17 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/theme/Theme.kt
  *
- * DMVP v3.0 application theme.
- * Uses Material3 with dark theme by default (professional forensic feel).
- * Deep purple primary, cyan accent.
+ * UDOVP V2 Theme — Cyberpunk/terminal aesthetic
+ * Dark theme only (no light theme) for consistent forensic feel.
+ * Primary: Cyan (#00FFB4), Secondary: Purple (#A78BFA)
+ *
+ * Reference: docs/ui-v2.html
  */
 
 package com.dmvp.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.*
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -17,104 +19,115 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 
-private val DarkColorScheme = darkColorScheme(
-    primary = DeepPurple700,
-    onPrimary = Color.White,
-    primaryContainer = DeepPurple800,
-    onPrimaryContainer = CyanBright,
-    secondary = CyanBright,
-    onSecondary = DeepPurple900,
-    secondaryContainer = Cyan700,
+// ═══════════════════════════════════════════════════════
+// Dark Color Scheme (UDOVP V2)
+// ═══════════════════════════════════════════════════════
+
+private val DmvpDarkColorScheme = darkColorScheme(
+    primary = CyanPrimary,
+    onPrimary = Color.Black,
+    primaryContainer = CyanDim,
+    onPrimaryContainer = Color.White,
+
+    secondary = PurplePrimary,
+    onSecondary = Color.Black,
+    secondaryContainer = PurpleDeep,
     onSecondaryContainer = Color.White,
-    tertiary = DeepPurple400,
-    onTertiary = Color.White,
-    tertiaryContainer = DeepPurple600,
+
+    tertiary = PinkAccent,
+    onTertiary = Color.Black,
+    tertiaryContainer = Color(0xFF831843),
     onTertiaryContainer = Color.White,
-    background = DarkBackground,
-    onBackground = TextPrimaryDark,
-    surface = DarkSurface,
-    onSurface = TextPrimaryDark,
-    surfaceVariant = DarkSurfaceVariant,
-    onSurfaceVariant = TextSecondaryDark,
-    surfaceContainer = DarkSurfaceContainer,
-    surfaceContainerHigh = DarkSurfaceContainerHigh,
-    error = Error,
+
+    background = BgBase,
+    onBackground = TextPrimary,
+
+    surface = SurfaceGlass,
+    onSurface = TextPrimary,
+    surfaceVariant = SurfaceCard,
+    onSurfaceVariant = TextSecondary,
+    surfaceContainer = SurfaceCard,
+    surfaceContainerHigh = SurfaceElevated,
+
+    error = StatusError,
     onError = Color.White,
     errorContainer = Color(0xFF8B0000),
     onErrorContainer = Color.White,
-    outline = DividerDark,
-    outlineVariant = DividerDark,
+
+    outline = BorderDefault,
+    outlineVariant = DividerSubtle,
     scrim = Color.Black.copy(alpha = 0.6f),
-    inverseSurface = LightSurface,
-    inverseOnSurface = TextPrimaryLight,
-    inversePrimary = DeepPurple500,
+
+    inverseSurface = Color(0xFFE2E8F0),
+    inverseOnSurface = Color(0xFF08090D),
+    inversePrimary = CyanDim,
 )
 
-private val LightColorScheme = lightColorScheme(
-    primary = DeepPurple600,
-    onPrimary = Color.White,
-    primaryContainer = DeepPurple100,
-    onPrimaryContainer = DeepPurple900,
-    secondary = Cyan700,
-    onSecondary = Color.White,
-    secondaryContainer = Cyan100,
-    onSecondaryContainer = DeepPurple900,
-    tertiary = DeepPurple400,
-    onTertiary = Color.White,
-    tertiaryContainer = DeepPurple200,
-    onTertiaryContainer = DeepPurple900,
-    background = LightSurface,
-    onBackground = TextPrimaryLight,
-    surface = LightSurface,
-    onSurface = TextPrimaryLight,
-    surfaceVariant = LightSurfaceVariant,
-    onSurfaceVariant = TextSecondaryLight,
-    surfaceContainer = LightSurfaceContainer,
-    surfaceContainerHigh = Color(0xFFEEEEEE),
-    error = Error,
-    onError = Color.White,
-    errorContainer = Color(0xFFFFCDD2),
-    onErrorContainer = Color(0xFFB71C1C),
-    outline = DividerLight,
-    outlineVariant = DividerLight,
-    scrim = Color.Black.copy(alpha = 0.4f),
-    inverseSurface = DarkSurface,
-    inverseOnSurface = TextPrimaryDark,
-    inversePrimary = DeepPurple400,
-)
+// ═══════════════════════════════════════════════════════
+// Theme Composable
+// ═══════════════════════════════════════════════════════
 
 @Composable
-fun DMVPTheme(
-    darkTheme: Boolean = true,
+fun DmvpTheme(
     content: @Composable () -> Unit
 ) {
-    val actualDark = darkTheme
-    val colorScheme = if (actualDark) DarkColorScheme else LightColorScheme
+    val colorScheme = DmvpDarkColorScheme
 
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as androidx.activity.ComponentActivity).window
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = !actualDark
-                isAppearanceLightNavigationBars = !actualDark
+                isAppearanceLightStatusBars = false
+                isAppearanceLightNavigationBars = false
             }
-            window.navigationBarColor = if (actualDark) {
-                androidx.core.graphics.ColorUtils.blendARGB(
-                    DarkBackground.toArgb(),
-                    Color.Black.toArgb(),
-                    0.9f
-                )
-            } else {
-                LightSurface.toArgb()
-            }
+            // Status bar matches background
+            window.statusBarColor = BgBase.toArgb()
+            window.navigationBarColor = BgBase.toArgb()
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = DMVPTypography,
-        shapes = Shapes,
+        typography = DmvpTypography,
+        shapes = DmvpShapes,
         content = content
     )
+}
+
+// ═══════════════════════════════════════════════════════
+// Theme Accessors (convenience)
+// ═══════════════════════════════════════════════════════
+
+object DmvpTokens {
+    val colors: DmvpColors get() = DmvpColors
+    val shapes get() = DmvpShapes
+    val typography get() = DmvpTypography
+}
+
+object DmvpColors {
+    val cyan = CyanPrimary
+    val purple = PurplePrimary
+    val pink = PinkAccent
+    val amber = AmberAccent
+    val red = RedAccent
+
+    val bg = BgBase
+    val surface = SurfaceGlass
+    val card = SurfaceCard
+    val elevated = SurfaceElevated
+
+    val border = BorderDefault
+    val borderHi = BorderHighlight
+    val divider = DividerSubtle
+
+    val textPrimary = TextPrimary
+    val textSecondary = TextSecondary
+    val textMuted = TextMuted
+    val textDim = TextDim
+
+    val success = StatusSuccess
+    val warning = StatusWarning
+    val error = StatusError
+    val info = StatusInfo
 }

@@ -611,7 +611,7 @@ fun copyToClipboard(context: Context, label: String, text: String) {
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun CEEPreviewPreview() {
-    DMVPTheme {
+    DmvpTheme {
         Surface(
             modifier = Modifier.fillMaxSize(),
             color = MaterialTheme.colorScheme.background

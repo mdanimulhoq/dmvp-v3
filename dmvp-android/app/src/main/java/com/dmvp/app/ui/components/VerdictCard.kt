@@ -738,7 +738,7 @@ fun getVerdictStatus(verdict: MultiAxisVerdict): VerdictStatus {
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun VerdictCardPreview() {
-    DMVPTheme {
+    DmvpTheme {
         Surface(
             modifier = Modifier.fillMaxWidth(),
             color = MaterialTheme.colorScheme.background

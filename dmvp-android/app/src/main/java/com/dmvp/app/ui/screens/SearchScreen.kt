@@ -36,7 +36,7 @@ import com.dmvp.app.ui.components.MediaPicker
 import com.dmvp.app.ui.components.MediaPickerResult
 import com.dmvp.app.ui.components.MediaPickerType
 import com.dmvp.app.ui.theme.CyanBright
-import com.dmvp.app.ui.theme.DMVPTheme
+import com.dmvp.app.ui.theme.DmvpTheme
 import com.dmvp.app.ui.theme.DeepPurple900
 import com.dmvp.app.ui.theme.Error
 import com.dmvp.app.ui.theme.Success
@@ -613,7 +613,7 @@ private fun java.io.File.getReadableSize(): String {
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun SearchScreenPreview() {
-    DMVPTheme {
+    DmvpTheme {
         SearchScreen(
             onNavigateBack = {},
             onNavigateToEvidenceDetail = {}
