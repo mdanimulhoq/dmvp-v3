@@ -18,10 +18,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.dmvp.app.ui.components.*
 import com.dmvp.app.ui.theme.*
 
@@ -30,7 +32,9 @@ fun LoginScreen(
     onLoginSuccess: () -> Unit,
     onNavigateToSignup: () -> Unit,
     onNavigateToOTP: (String) -> Unit,
-    viewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    viewModel: AuthViewModel = viewModel(
+        factory = AuthViewModelFactory(LocalContext.current.applicationContext as android.app.Application)
+    )
 ) {
     val uiState by viewModel.uiState.collectAsState()
 

@@ -10,30 +10,21 @@
 
 package com.dmvp.app.ui.auth
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.dmvp.app.data.model.AuthModels
+import com.dmvp.app.data.remote.GoogleSignInManager
 import com.dmvp.app.data.remote.RetrofitClient
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-data class AuthUiState(
-    val isLoading: Boolean = false,
-    val error: String? = null,
-    val message: String? = null,
-    val requiresOTP: Boolean = false,
-    val loginSuccess: Boolean = false,
-    val signupSuccess: Boolean = false,
-    val user: AuthModels.UserResponse? = null,
-    val token: String? = null,
-    val refreshToken: String? = null,
-)
-
-class AuthViewModel : ViewModel() {
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val apiService = RetrofitClient.getService()
+    private val googleSignInManager = GoogleSignInManager(application)
 
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
@@ -245,11 +236,49 @@ class AuthViewModel : ViewModel() {
     // ═══════════════════════════════════════════════════════
 
     fun signInWithGoogle() {
-        // TODO: Integrate Google Sign-In SDK
-        // For now, show a message
-        _uiState.value = _uiState.value.copy(
-            error = "Google Sign-In requires SDK setup. Use email/password for now.",
-        )
+        viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+
+            try {
+                // Step 1: Get Google ID token from Credential Manager
+                val googleResult = googleSignInManager.signIn()
+
+                if (!googleResult.success || googleResult.idToken == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = googleResult.errorMessage ?: "Google Sign-In failed"
+                    )
+                    return@launch
+                }
+
+                // Step 2: Send token to backend
+                val request = AuthModels.GoogleSignInRequest(
+                    googleToken = googleResult.idToken
+                )
+                val response = apiService.googleSignIn(request)
+
+                if (response.success) {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        loginSuccess = true,
+                        user = response.user,
+                        token = response.token,
+                        refreshToken = response.refreshToken,
+                        message = "Google Sign-In successful!"
+                    )
+                } else {
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        error = response.error ?: "Google Sign-In failed on server"
+                    )
+                }
+            } catch (e: Exception) {
+                _uiState.value = _uiState.value.copy(
+                    isLoading = false,
+                    error = e.message ?: "Google Sign-In failed"
+                )
+            }
+        }
     }
 
     // ═══════════════════════════════════════════════════════
