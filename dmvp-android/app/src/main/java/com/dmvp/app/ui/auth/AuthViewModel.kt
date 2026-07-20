@@ -21,7 +21,7 @@ data class AuthUiState(
 
 class AuthViewModel : ViewModel() {
     
-    private val apiService = RetrofitClient.apiService
+    private val apiService = RetrofitClient.getService()
     
     private val _uiState = MutableStateFlow(AuthUiState())
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
