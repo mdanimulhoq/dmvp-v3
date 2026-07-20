@@ -1,50 +1,49 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/screens/RegisterScreen.kt
  *
- * RegisterScreen for DMVP v3.0 Android app.
- * Handles the complete registration flow: review CEE, sign, submit to registry.
+ * UDOVP V2 — Register Screen (cyberpunk/terminal aesthetic)
+ * Follows docs/ui-v2.html #s-register design
+ *
+ * PR 4: Register + Verify + Compare
  */
 
 package com.dmvp.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.dmvp.app.data.model.DeviceTrustTier
-import com.dmvp.app.ui.components.CEEPreview
-import com.dmvp.app.ui.components.LoadingOverlay
-import com.dmvp.app.ui.components.LoadingState
-import com.dmvp.app.ui.components.TrustTierBadge
-import com.dmvp.app.ui.components.TrustTierBadgeSize
+import com.dmvp.app.ui.components.*
 import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.RegisterViewModel
-import com.dmvp.app.ui.viewmodel.getStepDescription
+import com.dmvp.app.ui.viewmodel.RegistrationStep
 import com.dmvp.app.ui.viewmodel.isReadyToSubmit
 import timber.log.Timber
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RegisterScreen(
     onNavigateBack: () -> Unit,
     onNavigateToEvidenceDetail: (String) -> Unit,
     onNavigateToHome: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val viewModel: RegisterViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
+
+    var selectedModality by remember { mutableStateOf("Image") }
 
     LaunchedEffect(uiState.isRegistered) {
         val registrationResult = uiState.registrationResult
@@ -53,276 +52,259 @@ fun RegisterScreen(
         }
     }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Register Evidence",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (uiState.isLoading) {
-                                // Optionally cancel loading
-                            } else {
-                                onNavigateBack()
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                actions = {
-                    TrustTierBadge(
-                        trustTier = DeviceTrustTier.TIER_A,
-                        size = TrustTierBadgeSize.SMALL,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(BgBase)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(top = 8.dp, bottom = 100.dp),
+    ) {
+        // Header
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+        ) {
+            Text(
+                text = "← Back",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = CyanPrimary,
+                modifier = Modifier.clickable { onNavigateBack() },
             )
         }
-    ) { paddingValues ->
-        LoadingOverlay(
-            isLoading = uiState.isLoading,
-            message = when {
-                uiState.currentStep == com.dmvp.app.ui.viewmodel.RegistrationStep.SUBMITTING -> "Submitting registration..."
-                uiState.currentStep == com.dmvp.app.ui.viewmodel.RegistrationStep.SIGNING -> "Signing evidence..."
-                uiState.currentStep == com.dmvp.app.ui.viewmodel.RegistrationStep.BUILDING_CEE -> "Building CEE..."
-                uiState.isLoading -> "Processing..."
-                else -> null
-            },
-            progress = uiState.progress,
-            state = when {
-                uiState.isRegistered -> LoadingState.SUCCESS
-                uiState.currentStep == com.dmvp.app.ui.viewmodel.RegistrationStep.ERROR -> LoadingState.ERROR
-                else -> LoadingState.LOADING
-            },
-            showCancelButton = !uiState.isRegistered,
-            onCancel = {
-                viewModel.reset()
-                onNavigateBack()
-            },
-            onDismiss = {
-                viewModel.clearError()
-                if (uiState.isRegistered) {
-                    onNavigateToHome()
-                }
-            },
-            content = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    val error = uiState.error
-                    if (error != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Error.copy(alpha = 0.1f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Error,
-                                    contentDescription = "Error",
-                                    tint = Error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = error,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Error,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = viewModel::clearError,
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = Error,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
 
-                    val deviceKeyId = uiState.deviceKeyId
-                    if (deviceKeyId != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                verticalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = "Device Info",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                )
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Text(
-                                        text = "Key ID:",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                    )
-                                    Text(
-                                        text = deviceKeyId.take(20) + "...",
-                                        style = MaterialTheme.typography.bodySmall.copy(
-                                            fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
-                                        ),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                                val trustTier = uiState.trustTier
-                                if (trustTier != null) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "Trust Tier:",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                                        )
-                                        TrustTierBadge(
-                                            trustTier = DeviceTrustTier.valueOf(trustTier),
-                                            size = TrustTierBadgeSize.SMALL
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
+        // Title
+        Text(
+            text = "Register Asset",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = TextPrimary,
+            letterSpacing = (-0.5).sp,
+        )
+        Text(
+            text = "Select file type and upload to generate cryptographic proof.",
+            fontSize = 13.sp,
+            color = TextMuted,
+        )
+        Spacer(Modifier.height(18.dp))
 
-                    val cee = uiState.cee
-                    if (cee != null) {
-                        CEEPreview(
-                            cee = cee,
-                            modifier = Modifier.fillMaxWidth(),
-                            showSignature = true,
-                            onCopyClick = { field, value ->
-                                // Copy to clipboard handled in CEEPreview
-                            }
-                        )
-                    } else {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                            )
-                        ) {
-                            Box(
-                                modifier = Modifier.fillMaxSize(),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(40.dp),
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "Building evidence envelope...",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
-                        }
-                    }
+        // ═══════════════════════════════════════════════════════
+        // 1. Select Modality
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "1. Select Modality")
 
-                    Button(
-                        onClick = viewModel::submitRegistration,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        enabled = uiState.isReadyToSubmit(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = CyanBright,
-                            contentColor = DeepPurple900
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Upload,
-                            contentDescription = null,
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Register Evidence",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Text(
-                        text = uiState.getStepDescription(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.fillMaxWidth(),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Row 1
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ModalityTile(
+                    icon = "\uD83D\uDDBC\uFE0F",
+                    label = "Image",
+                    selected = selectedModality == "Image",
+                    onClick = { selectedModality = "Image" },
+                    modifier = Modifier.weight(1f),
+                )
+                ModalityTile(
+                    icon = "\uD83D\uDCC4",
+                    label = "PDF",
+                    selected = selectedModality == "PDF",
+                    onClick = { selectedModality = "PDF" },
+                    modifier = Modifier.weight(1f),
+                )
+                ModalityTile(
+                    icon = "\uD83D\uDCBB",
+                    label = "Code",
+                    selected = selectedModality == "Code",
+                    onClick = { selectedModality = "Code" },
+                    modifier = Modifier.weight(1f),
+                )
             }
+            // Row 2
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                ModalityTile(
+                    icon = "\uD83C\uDFE5",
+                    label = "Video",
+                    selected = selectedModality == "Video",
+                    onClick = { selectedModality = "Video" },
+                    modifier = Modifier.weight(1f),
+                )
+                ModalityTile(
+                    icon = "\uD83C\uDFB5",
+                    label = "Audio",
+                    selected = selectedModality == "Audio",
+                    onClick = { selectedModality = "Audio" },
+                    modifier = Modifier.weight(1f),
+                )
+                ModalityTile(
+                    icon = "\uD83D\uDCE6",
+                    label = "3D/Bin",
+                    selected = selectedModality == "3D/Bin",
+                    onClick = { selectedModality = "3D/Bin" },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // 2. Upload File
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "2. Upload File")
+
+        // Upload area
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(120.dp)
+                .border(
+                    2.dp,
+                    CyanPrimary.copy(alpha = 0.2f),
+                    RoundedCornerShape(14.dp),
+                )
+                .background(
+                    CyanPrimary.copy(alpha = 0.02f),
+                    RoundedCornerShape(14.dp),
+                )
+                .clickable { /* TODO: File picker */ },
+            contentAlignment = Alignment.Center,
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "⬆️",
+                    fontSize = 28.sp,
+                )
+                Text(
+                    text = "Tap to select or drop file here",
+                    fontSize = 12.sp,
+                    color = TextMuted,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // 3. C2PA Status
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "3. C2PA Status")
+
+        DmvpCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = "Content Credentials",
+                    fontSize = 13.sp,
+                    color = TextMuted,
+                )
+                DmvpBadge(
+                    text = "Not Detected",
+                    variant = BadgeVariant.WARN,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Error display
+        // ═══════════════════════════════════════════════════════
+        val error = uiState.error
+        if (error != null) {
+            Text(
+                text = error,
+                color = StatusError,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // Submit button
+        // ═══════════════════════════════════════════════════════
+        DmvpButton(
+            text = if (uiState.isLoading) "Registering..." else "Generate Hash & Register",
+            onClick = { viewModel.submitRegistration() },
+            enabled = !uiState.isLoading && uiState.isReadyToSubmit(),
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        // Step description
+        Text(
+            text = getStepDescription(uiState.currentStep),
+            fontSize = 11.sp,
+            color = TextMuted,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
         )
     }
 }
 
-@Preview(showBackground = true, backgroundColor = 0xFF1A0033)
+// ═══════════════════════════════════════════════════════
+// Modality Tile
+// ═══════════════════════════════════════════════════════
+
 @Composable
-private fun RegisterScreenPreview() {
-    DmvpTheme {
-        RegisterScreen(
-            onNavigateBack = {},
-            onNavigateToEvidenceDetail = {},
-            onNavigateToHome = {}
+private fun ModalityTile(
+    icon: String,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val borderColor = if (selected) CyanPrimary else BorderDefault
+    val bgColor = if (selected) CyanPrimary.copy(alpha = 0.06f) else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.025f)
+
+    Column(
+        modifier = modifier
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .background(bgColor, RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(vertical = 16.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text(icon, fontSize = 22.sp)
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label.uppercase(),
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = TextPrimary,
+            letterSpacing = 0.5.sp,
         )
+    }
+}
+
+// ═══════════════════════════════════════════════════════
+// Step description helper
+// ═══════════════════════════════════════════════════════
+
+private fun getStepDescription(step: RegistrationStep): String {
+    return when (step) {
+        RegistrationStep.IDLE -> "Ready to register"
+        RegistrationStep.BUILDING_CEE -> "Building evidence envelope..."
+        RegistrationStep.SIGNING -> "Signing evidence..."
+        RegistrationStep.SUBMITTING -> "Submitting to registry..."
+        RegistrationStep.COMPLETE -> "Registration complete!"
+        RegistrationStep.ERROR -> "Error occurred"
     }
 }

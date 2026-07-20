@@ -1,619 +1,357 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/screens/VerifyScreen.kt
  *
- * VerifyScreen for DMVP v3.0 Android app.
- * Allows users to select media, verify against the registry, and view the multi-axis verdict.
+ * UDOVP V2 — Verify Screen (cyberpunk/terminal aesthetic)
+ * Follows docs/ui-v2.html #s-verify design with 10-layer verification display
+ *
+ * PR 4: Register + Verify + Compare
  */
 
 package com.dmvp.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.dmvp.app.ui.components.LoadingOverlay
-import com.dmvp.app.ui.components.LoadingState
-import com.dmvp.app.ui.components.MediaPicker
-import com.dmvp.app.ui.components.MediaPickerResult
-import com.dmvp.app.ui.components.MediaPickerType
-import com.dmvp.app.ui.components.VerdictCard
-import com.dmvp.app.ui.components.VerdictCardMode
-import com.dmvp.app.ui.theme.DmvpTheme
-import com.dmvp.app.ui.theme.Error
-import com.dmvp.app.ui.theme.Success
+import com.dmvp.app.ui.components.*
+import com.dmvp.app.ui.theme.*
 import com.dmvp.app.ui.viewmodel.VerifyViewModel
-import com.dmvp.app.utils.DmvpConstants
-import com.dmvp.app.utils.VerificationConstants
 import timber.log.Timber
 
-/**
- * VerifyScreen composable.
- */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VerifyScreen(
     onNavigateBack: () -> Unit,
     onNavigateToVerdictDetail: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val viewModel: VerifyViewModel = hiltViewModel()
     val uiState by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Verify Media",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            if (!uiState.isLoading) {
-                                onNavigateBack()
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "Back",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                actions = {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val modes: List<String> = listOf(
-                            VerificationConstants.MODE_FAST,
-                            VerificationConstants.MODE_STANDARD,
-                            VerificationConstants.MODE_DEEP
-                        )
-                        modes.forEach { mode ->
-                            FilterChip(
-                                selected = uiState.verificationMode == mode,
-                                onClick = {
-                                    viewModel.setVerificationMode(mode)
-                                },
-                                label = {
-                                    Text(
-                                        text = mode.replaceFirstChar { it.uppercase() },
-                                        style = MaterialTheme.typography.labelSmall
-                                    )
-                                },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    selectedLabelColor = MaterialTheme.colorScheme.primary
-                                ),
-                                modifier = Modifier.padding(horizontal = 2.dp)
-                            )
-                        }
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
-    ) { paddingValues ->
-        LoadingOverlay(
-            isLoading = uiState.isLoading,
-            message = "Verifying media...",
-            progress = uiState.progress,
-            state = when {
-                uiState.isVerified && uiState.verdict != null -> LoadingState.SUCCESS
-                uiState.error != null -> LoadingState.ERROR
-                else -> LoadingState.LOADING
-            },
-            showCancelButton = true,
-            onCancel = {
-                viewModel.reset()
-            },
-            onDismiss = {
-                viewModel.clearError()
-            },
-            content = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(paddingValues)
-                        .padding(horizontal = 16.dp)
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    // Error message
-                    val errorMsg = uiState.error
-                    if (errorMsg != null) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = Error.copy(alpha = 0.1f)
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Error,
-                                    contentDescription = "Error",
-                                    tint = Error,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = errorMsg,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Error,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = viewModel::clearError,
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Close,
-                                        contentDescription = "Dismiss",
-                                        tint = Error,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
+    var uaidQuery by remember { mutableStateOf("") }
 
-                    // ── Step 3.4: MediaPicker with camera support ──────────
-                    if (uiState.selectedFile == null) {
-                        MediaPicker(
-                            mediaType = MediaPickerType.IMAGE_AND_VIDEO,
-                            onResult = { result ->
-                                when (result) {
-                                    is MediaPickerResult.Success -> {
-                                        Timber.d("File selected: ${result.file.name}, type: ${result.mediaType}")
-                                        viewModel.setFile(result.file, result.mediaType)
-                                    }
-                                    is MediaPickerResult.Error -> {
-                                        Timber.e("Media picker error: ${result.message}")
-                                        // handled by viewModel
-                                    }
-                                    is MediaPickerResult.Cancelled -> {
-                                        Timber.d("Media picker cancelled")
-                                        // no-op
-                                    }
-                                }
-                            },
-                            showCamera = true,      // ── Step 3.4: Camera enabled ──
-                            showGallery = true,
-                            showFilePicker = true
-                        )
-                    }
-
-                    // Media preview (if file selected)
-                    val selectedFile = uiState.selectedFile
-                    val mediaType = uiState.mediaType
-                    if (selectedFile != null && mediaType != null) {
-                        MediaPreviewForVerify(
-                            file = selectedFile,
-                            mediaType = mediaType,
-                            sha256 = uiState.sha256,
-                            canonicalHash = uiState.canonicalHash,
-                            onClear = {
-                                viewModel.reset()
-                            },
-                            onVerify = {
-                                viewModel.verify()
-                            },
-                            isLoading = uiState.isLoading,
-                            isVerified = uiState.isVerified,
-                            hasResult = uiState.hasResult
-                        )
-                    }
-
-                    // Verdict result
-                    val verdict = uiState.verdict
-                    if (uiState.isVerified && verdict != null) {
-                        VerdictCard(
-                            verdict = verdict,
-                            mode = VerdictCardMode.STANDARD,
-                            modifier = Modifier.fillMaxWidth(),
-                            onEvidenceClick = { evidenceId ->
-                                onNavigateToVerdictDetail(evidenceId)
-                            }
-                        )
-                    }
-
-                    // ── Step 10: Evidence ID Search ──
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Search by Evidence ID",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            OutlinedTextField(
-                                value = uiState.evidenceIdQuery,
-                                onValueChange = viewModel::setEvidenceIdQuery,
-                                label = { Text("Evidence ID") },
-                                modifier = Modifier.fillMaxWidth(),
-                                singleLine = true,
-                                placeholder = { Text("Enter evidence UUID") }
-                            )
-                            Button(
-                                onClick = viewModel::searchEvidenceById,
-                                modifier = Modifier.fillMaxWidth(),
-                                enabled = !uiState.isSearchingId && uiState.evidenceIdQuery.isNotBlank()
-                            ) {
-                                if (uiState.isSearchingId) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                Text(if (uiState.isSearchingId) "Searching..." else "Search ID")
-                            }
-                        }
-                    }
-
-                    // ── Step 10: Matched evidence metadata (from upload verify) ──
-                    val matchedRecord = uiState.matchedEvidenceRecord
-                    if (matchedRecord != null) {
-                        EvidenceMetadataCard(
-                            title = "Matched Evidence Metadata",
-                            record = matchedRecord
-                        )
-                    }
-
-                    // ── Step 10: Searched evidence metadata (from ID search) ──
-                    val searchedRecord = uiState.searchedEvidenceRecord
-                    if (searchedRecord != null) {
-                        EvidenceMetadataCard(
-                            title = "Evidence Metadata",
-                            record = searchedRecord
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                }
-            }
-        )
-    }
-}
-
-/**
- * Media preview for Verify screen with verify button.
- */
-@Composable
-private fun MediaPreviewForVerify(
-    file: java.io.File,
-    mediaType: String,
-    sha256: String?,
-    canonicalHash: String?,
-    onClear: () -> Unit,
-    onVerify: () -> Unit,
-    isLoading: Boolean,
-    isVerified: Boolean,
-    hasResult: Boolean
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(BgBase)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(top = 8.dp, bottom = 100.dp),
     ) {
-        Column(
+        // Header
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+                .padding(bottom = 16.dp),
         ) {
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE)
-                            Icons.Default.Image else Icons.Default.Videocam,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Text(
-                        text = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE) "Image" else "Video",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = "•",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                    )
-                    Text(
-                        text = file.getReadableSize(),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                    )
-                }
-                IconButton(
-                    onClick = onClear,
-                    modifier = Modifier.size(32.dp),
-                    enabled = !isLoading
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Close,
-                        contentDescription = "Remove",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        modifier = Modifier.size(18.dp)
-                    )
-                }
-            }
+            Text(
+                text = "← Back",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = CyanPrimary,
+                modifier = Modifier.clickable { onNavigateBack() },
+            )
+        }
 
-            // Thumbnail placeholder
+        // Title
+        Text(
+            text = "Verification Engine",
+            fontSize = 22.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = TextPrimary,
+            letterSpacing = (-0.5).sp,
+        )
+        Text(
+            text = "10-layer verification from exact hash to ZK proofs.",
+            fontSize = 13.sp,
+            color = TextMuted,
+        )
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Search by UAID
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "Search by UAID")
+
+        // Search bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .border(1.dp, BorderDefault, RoundedCornerShape(14.dp))
+                .background(
+                    androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f),
+                    RoundedCornerShape(14.dp),
+                )
+                .padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DmvpInput(
+                value = uaidQuery,
+                onValueChange = { uaidQuery = it },
+                placeholder = "Enter UAID (e.g., uaid_5_t1...)",
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(4.dp))
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(120.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Icon(
-                            imageVector = if (mediaType == DmvpConstants.MEDIA_TYPE_IMAGE)
-                                Icons.Default.Image else Icons.Default.Videocam,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Text(
-                            text = "Preview",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                    }
-                }
-            }
-
-            // SHA-256
-            if (sha256 != null) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text(
-                        text = "SHA-256:",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    .fillMaxHeight()
+                    .width(80.dp)
+                    .background(
+                        brush = androidx.compose.ui.graphics.Brush.linearGradient(GradientButton),
+                        RoundedCornerShape(10.dp),
                     )
-                    Text(
-                        text = sha256.take(16) + "..." + sha256.takeLast(8),
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontFamily = FontFamily.Monospace
-                        ),
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-
-            // Action buttons
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = onVerify,
-                    modifier = Modifier.weight(1f),
-                    enabled = !isLoading && !isVerified,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Success,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Verified,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Verify")
-                }
-                if (isVerified && hasResult) {
-                    OutlinedButton(
-                        onClick = onClear,
-                        modifier = Modifier.weight(0.5f),
-                        enabled = !isLoading
-                    ) {
-                        Text("Clear")
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Extension to get readable file size.
- */
-private fun java.io.File.getReadableSize(): String {
-    val size = this.length()
-    return when {
-        size < 1024 -> "$size B"
-        size < 1024 * 1024 -> String.format("%.1f KB", size / 1024.0)
-        size < 1024 * 1024 * 1024 -> String.format("%.1f MB", size / (1024.0 * 1024.0))
-        else -> String.format("%.2f GB", size / (1024.0 * 1024.0 * 1024.0))
-    }
-}
-
-// ================================
-// Step 10: Evidence Metadata Card
-// ================================
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun EvidenceMetadataCard(
-    title: String,
-    record: com.dmvp.app.data.remote.EvidenceRecord
-) {
-    val clipboardManager = LocalClipboardManager.current
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-        ),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        SelectionContainer {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
+                    .clickable {
+                        viewModel.setEvidenceIdQuery(uaidQuery)
+                        viewModel.searchEvidenceById()
+                    },
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "CHECK",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = androidx.compose.ui.graphics.Color.Black,
+                    letterSpacing = 1.sp,
                 )
-                MetadataRow("Evidence ID", record.evidenceId, clipboardManager)
-                MetadataRow("Media type", record.mediaType, clipboardManager)
-                MetadataRow("Signer device key", record.signerDeviceKeyId, clipboardManager)
-                record.signerDeviceId?.let { MetadataRow("Signer device ID", it, clipboardManager) }
-                record.signerTrustTier?.let { MetadataRow("Trust tier", it, clipboardManager) }
-                MetadataRow("SHA-256", record.sha256Original, clipboardManager)
-                record.canonicalMediaHash?.let { MetadataRow("Canonical hash", it, clipboardManager) }
-                MetadataRow("Lifecycle", record.lifecycleState, clipboardManager)
-                MetadataRow("Created at", record.createdAt, clipboardManager)
-                MetadataRow("Updated at", record.updatedAt, clipboardManager)
+            }
+        }
 
-                // Owner contact
-                val contact = record.ownerContact
-                if (contact != null) {
-                    Divider(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                        modifier = Modifier.padding(vertical = 4.dp)
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Or Upload File
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "Or Upload File")
+
+        // Upload area with file info
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(80.dp)
+                .border(
+                    2.dp,
+                    CyanPrimary.copy(alpha = 0.2f),
+                    RoundedCornerShape(14.dp),
+                )
+                .background(
+                    CyanPrimary.copy(alpha = 0.02f),
+                    RoundedCornerShape(14.dp),
+                )
+                .clickable { /* TODO: File picker */ },
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // File icon
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(
+                            CyanPrimary.copy(alpha = 0.06f),
+                            RoundedCornerShape(10.dp),
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("\uD83D\uDDBC\uFE0F", fontSize = 18.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = "sunset_photo.jpg",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = TextPrimary,
                     )
                     Text(
-                        text = "Owner Contact",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary
+                        text = "Uploaded just now",
+                        fontSize = 11.sp,
+                        color = TextMuted,
                     )
-                    contact.name?.let { MetadataRow("Name", it, clipboardManager) }
-                    contact.phone?.let { MetadataRow("Phone", it, clipboardManager) }
-                    contact.address?.let { MetadataRow("Address", it, clipboardManager) }
                 }
             }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Verification Layers (10-layer display)
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "Verification Layers")
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            // L1: Exact Integrity
+            VerificationLayer(
+                name = "L1: Exact Integrity",
+                subtitle = "SHA-256 + BLAKE3 bit match",
+                status = "MATCH",
+                statusVariant = BadgeVariant.OK,
+                borderColor = CyanPrimary,
+            )
+            // L2: Structural
+            VerificationLayer(
+                name = "L2: Structural",
+                subtitle = "EXIF + container digest",
+                status = "MATCH",
+                statusVariant = BadgeVariant.OK,
+                borderColor = CyanPrimary,
+            )
+            // L3: Perceptual
+            VerificationLayer(
+                name = "L3: Perceptual",
+                subtitle = "PDQ + pHash + dHash",
+                status = "MATCH",
+                statusVariant = BadgeVariant.OK,
+                borderColor = CyanPrimary,
+            )
+            // L4: AI Embedding
+            VerificationLayer(
+                name = "L4: AI Embedding",
+                subtitle = "DINOv3 + SigLIP 2 — cosine 0.98",
+                status = "SCAN",
+                statusVariant = BadgeVariant.INFO,
+                borderColor = PurplePrimary,
+            )
+            // L5: Cross-modal
+            VerificationLayer(
+                name = "L5: Cross-modal",
+                subtitle = "SigLIP 2 semantic alignment",
+                status = "SCAN",
+                statusVariant = BadgeVariant.INFO,
+                borderColor = TextDim,
+            )
+            // L8: AI Derivative
+            VerificationLayer(
+                name = "L8: AI Derivative",
+                subtitle = "C2PA + TrustMark + SynthID",
+                status = "PENDING",
+                statusVariant = BadgeVariant.WARN,
+                borderColor = TextDim,
+            )
+            // L9: Local Descriptor
+            VerificationLayer(
+                name = "L9: Local Descriptor",
+                subtitle = "SuperPoint + LightGlue",
+                status = "SCAN",
+                statusVariant = BadgeVariant.INFO,
+                borderColor = TextDim,
+            )
+            // L10: ZK Proof
+            VerificationLayer(
+                name = "L10: ZK Proof",
+                subtitle = "Halo2 / SP1 possession proof",
+                status = "R&D",
+                statusVariant = BadgeVariant.INFO,
+                borderColor = TextDim,
+            )
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Trust Score Summary
+        // ═══════════════════════════════════════════════════════
+        DmvpCard {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DmvpTrustCircle(score = 96)
+                Spacer(Modifier.width(14.dp))
+                Column {
+                    Text(
+                        text = "High Confidence",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = CyanPrimary,
+                    )
+                    Text(
+                        text = "6/8 layers matched",
+                        fontSize = 11.sp,
+                        color = TextMuted,
+                    )
+                }
+            }
+        }
+
+        // Error display
+        val errorMsg = uiState.error
+        if (errorMsg != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                text = errorMsg,
+                color = StatusError,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
+            )
         }
     }
 }
 
+// ═══════════════════════════════════════════════════════
+// Verification Layer Row
+// ═══════════════════════════════════════════════════════
+
 @Composable
-private fun MetadataRow(
-    label: String,
-    value: String,
-    clipboardManager: androidx.compose.ui.platform.ClipboardManager
+private fun VerificationLayer(
+    name: String,
+    subtitle: String,
+    status: String,
+    statusVariant: BadgeVariant,
+    borderColor: androidx.compose.ui.graphics.Color,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(
+                start = 3.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(0.dp),
+            )
+            .background(
+                androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f),
+                RoundedCornerShape(8.dp),
+            )
+            .padding(12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = label,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                text = name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = TextPrimary,
             )
             Text(
-                text = if (value.length > 40) value.take(20) + "..." + value.takeLast(10) else value,
-                style = MaterialTheme.typography.bodySmall.copy(
-                    fontFamily = FontFamily.Monospace
-                ),
-                color = MaterialTheme.colorScheme.onSurface
+                text = subtitle,
+                fontSize = 11.sp,
+                color = TextMuted,
             )
         }
-        IconButton(
-            onClick = {
-                clipboardManager.setText(AnnotatedString(value))
-            },
-            modifier = Modifier.size(28.dp)
-        ) {
-            Icon(
-                imageVector = Icons.Default.ContentCopy,
-                contentDescription = "Copy $label",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                modifier = Modifier.size(16.dp)
-            )
-        }
-    }
-}
-
-// ================================
-// Preview
-// ================================
-
-@Preview(showBackground = true, backgroundColor = 0xFF1A0033)
-@Composable
-private fun VerifyScreenPreview() {
-    DmvpTheme {
-        VerifyScreen(
-            onNavigateBack = {},
-            onNavigateToVerdictDetail = {}
+        DmvpBadge(
+            text = status,
+            variant = statusVariant,
         )
     }
 }
