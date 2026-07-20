@@ -1,8 +1,10 @@
 /**
  * app/src/main/java/com/dmvp/app/ui/screens/HomeScreen.kt
  *
- * HomeScreen for DMVP v3.0 Android app.
- * Serves as the main dashboard with quick access to all features.
+ * UDOVP V2 — Dashboard Screen (cyberpunk/terminal aesthetic)
+ * Follows docs/ui-v2.html #s-dashboard design
+ *
+ * PR 3: Dashboard + Bottom Navigation
  */
 
 package com.dmvp.app.ui.screens
@@ -10,315 +12,275 @@ package com.dmvp.app.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dmvp.app.data.model.DeviceTrustTier
-import com.dmvp.app.data.model.getDisplayName
-import com.dmvp.app.ui.components.TrustTierBadge
-import com.dmvp.app.ui.components.TrustTierBadgeSize
+import com.dmvp.app.ui.components.*
 import com.dmvp.app.ui.theme.*
-import timber.log.Timber
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     onNavigateToCapture: () -> Unit,
     onNavigateToVerify: () -> Unit,
-    onNavigateToCompare: () -> Unit = {},
+    onNavigateToCompare: () -> Unit,
     onNavigateToDevice: () -> Unit,
-    modifier: Modifier = Modifier
+    onNavigateToAccount: () -> Unit = {},
+    onNavigateToAssets: () -> Unit = {},
+    onNavigateToClaims: () -> Unit = {},
+    onNavigateToSearch: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
-    val trustTier = DeviceTrustTier.TIER_A // placeholder
-
-    Timber.d("HomeScreen rendered, trustTier: $trustTier")
-
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        containerColor = MaterialTheme.colorScheme.background,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "DMVP v3.0",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
-                },
-                actions = {
-                    TrustTierBadge(
-                        trustTier = trustTier,
-                        size = TrustTierBadgeSize.SMALL,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                    IconButton(onClick = onNavigateToDevice) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Device Settings",
-                            tint = MaterialTheme.colorScheme.onBackground
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
-                )
-            )
-        }
-    ) { paddingValues ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // Welcome section
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "Welcome to DMVP",
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Decentralized Media Verification Protocol",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = "Store proofs, not content.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            // Quick Actions title
-            item {
-                Text(
-                    text = "Quick Actions",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-
-            // Quick Actions Grid — Column + Row (no LazyVerticalGrid)
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ActionCard(
-                            icon = Icons.Default.AddPhotoAlternate,
-                            title = "Register",
-                            description = "Capture or select media to register",
-                            color = CyanBright,
-                            onClick = onNavigateToCapture,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ActionCard(
-                            icon = Icons.Default.Verified,
-                            title = "Verify",
-                            description = "Verify media against registry",
-                            color = Success,
-                            onClick = onNavigateToVerify,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        ActionCard(
-                            icon = Icons.Default.CompareArrows,
-                            title = "Compare",
-                            description = "Match a new file against a registered one",
-                            color = Success,
-                            onClick = onNavigateToCompare,
-                            modifier = Modifier.weight(1f)
-                        )
-                        ActionCard(
-                            icon = Icons.Default.Devices,
-                            title = "Device",
-                            description = "Manage device keys and trust",
-                            color = Warning,
-                            onClick = onNavigateToDevice,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                }
-            }
-
-            // Recent Activity section
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = "Recent Activity",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
-                        ) {
-                            StatItem(label = "Registered", value = "0")
-                            StatItem(label = "Verified", value = "0")
-                            StatItem(label = "Trust Tier", value = trustTier.getDisplayName())
-                        }
-                        Divider(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                        Text(
-                            text = "No recent activity to show.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                    }
-                }
-            }
-
-            // Footer
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = "DMVP v3.0 • Zero Storage • Proof-Based",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.3f),
-                    modifier = Modifier.fillMaxWidth(),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-            }
-        }
-    }
-}
-
-@Composable
-private fun ActionCard(
-    icon: ImageVector,
-    title: String,
-    description: String,
-    color: Color,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(
+    Column(
         modifier = modifier
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .fillMaxSize()
+            .background(BgBase)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 22.dp)
+            .padding(top = 8.dp, bottom = 100.dp), // bottom padding for nav
     ) {
-        Column(
+        // ═══════════════════════════════════════════════════════
+        // Header — Logo + Account Button
+        // ═══════════════════════════════════════════════════════
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .fillMaxWidth()
+                .padding(bottom = 22.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = color,
-                modifier = Modifier.size(48.dp)
+            // Logo
+            Column {
+                Text(
+                    text = "UDOVP",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = CyanPrimary,
+                    letterSpacing = (-0.5).sp,
+                )
+                Text(
+                    text = "UNIVERSAL OWNERSHIP",
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = TextMuted,
+                    letterSpacing = 3.sp,
+                )
+            }
+
+            // Account button
+            Row(
+                modifier = Modifier
+                    .clickable { onNavigateToAccount() }
+                    .background(
+                        CyanPrimary.copy(alpha = 0.06f),
+                        androidx.compose.foundation.shape.RoundedCornerShape(30.dp),
+                    )
+                    .then(
+                        Modifier.border(
+                            1.dp,
+                            CyanPrimary.copy(alpha = 0.15f),
+                            androidx.compose.foundation.shape.RoundedCornerShape(30.dp),
+                        )
+                    )
+                    .padding(start = 4.dp, end = 14.dp, top = 5.dp, bottom = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                // Avatar circle
+                Box(
+                    modifier = Modifier
+                        .size(26.dp)
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                GradientAccent,
+                            ),
+                            androidx.compose.foundation.shape.CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "AH",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = androidx.compose.ui.graphics.Color.Black,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Account",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = TextPrimary,
+                )
+            }
+        }
+
+        // ═══════════════════════════════════════════════════════
+        // Stats Grid (2x2)
+        // ═══════════════════════════════════════════════════════
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                DmvpStatBox(
+                    value = "1,204",
+                    label = "Total Assets",
+                    modifier = Modifier.weight(1f),
+                    accentColor = CyanPrimary,
+                )
+                DmvpStatBox(
+                    value = "98.6%",
+                    label = "Trust Score",
+                    modifier = Modifier.weight(1f),
+                    valueColor = CyanPrimary,
+                    accentColor = PurplePrimary,
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                DmvpStatBox(
+                    value = "23",
+                    label = "Pending Claims",
+                    modifier = Modifier.weight(1f),
+                    valueColor = AmberAccent,
+                    accentColor = AmberAccent,
+                )
+                DmvpStatBox(
+                    value = "7",
+                    label = "Devices",
+                    modifier = Modifier.weight(1f),
+                    valueColor = PurplePrimary,
+                    accentColor = PinkAccent,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Quick Actions (3-column grid)
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "Quick Actions")
+
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            // Row 1
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                DmvpActionTile(
+                    icon = "\uD83D\uDCE4",
+                    label = "Register",
+                    onClick = onNavigateToCapture,
+                    modifier = Modifier.weight(1f),
+                )
+                DmvpActionTile(
+                    icon = "\uD83D\uDEE1\uFE0F",
+                    label = "Verify",
+                    onClick = onNavigateToVerify,
+                    modifier = Modifier.weight(1f),
+                )
+                DmvpActionTile(
+                    icon = "\u2696\uFE0F",
+                    label = "Compare",
+                    onClick = onNavigateToCompare,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            // Row 2
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                DmvpActionTile(
+                    icon = "\uD83D\uDD0D",
+                    label = "AI Search",
+                    onClick = onNavigateToSearch,
+                    modifier = Modifier.weight(1f),
+                )
+                DmvpActionTile(
+                    icon = "\uD83D\uDCDC",
+                    label = "Assets",
+                    onClick = onNavigateToAssets,
+                    modifier = Modifier.weight(1f),
+                )
+                DmvpActionTile(
+                    icon = "\u26A1",
+                    label = "Claims",
+                    onClick = onNavigateToClaims,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+
+        Spacer(Modifier.height(18.dp))
+
+        // ═══════════════════════════════════════════════════════
+        // Blockchain Anchors
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "Blockchain Anchors")
+
+        DmvpCard {
+            DmvpCertRow(
+                label = "Bitcoin (OTS)",
+                value = "Block #805,123 \u2713",
+                valueColor = CyanPrimary,
             )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(thickness = 1.dp, color = DividerSubtle)
+            Spacer(Modifier.height(10.dp))
+            DmvpCertRow(
+                label = "Sigstore Rekor",
+                value = "Log #48291",
+                valueColor = CyanPrimary,
             )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            Spacer(Modifier.height(10.dp))
+            HorizontalDivider(thickness = 1.dp, color = DividerSubtle)
+            Spacer(Modifier.height(10.dp))
+            DmvpCertRow(
+                label = "Arbitrum L2",
+                value = "Synced",
+                valueColor = PurplePrimary,
+                isLast = true,
             )
         }
-    }
-}
 
-@Composable
-private fun StatItem(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp
-            ),
-            color = MaterialTheme.colorScheme.primary
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-        )
-    }
-}
+        Spacer(Modifier.height(18.dp))
 
-@Preview(showBackground = true, backgroundColor = 0xFF1A0033)
-@Composable
-private fun HomeScreenPreview() {
-    DmvpTheme {
-        HomeScreen(
-            onNavigateToCapture = {},
-            onNavigateToVerify = {},
-            onNavigateToCompare = {},
-            onNavigateToDevice = {}
+        // ═══════════════════════════════════════════════════════
+        // Recent Activity
+        // ═══════════════════════════════════════════════════════
+        DmvpSectionHeader(text = "Recent Activity")
+
+        DmvpAssetRow(
+            icon = "\uD83D\uDCC4",
+            name = "Project_Report.pdf",
+            meta = "uaid_5_t1_01J3Z\u2026 \u2022 L1 Match",
+            badge = "Verified",
+            badgeVariant = BadgeVariant.OK,
+            onClick = {},
+        )
+        Spacer(Modifier.height(8.dp))
+        DmvpAssetRow(
+            icon = "\uD83C\uDFB5",
+            name = "Voice_Over.mp3",
+            meta = "uaid_5_t1_02K9M\u2026 \u2022 L8 Signal",
+            badge = "AI Flag",
+            badgeVariant = BadgeVariant.WARN,
+            onClick = {},
         )
     }
 }
