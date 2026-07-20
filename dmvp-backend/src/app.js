@@ -45,6 +45,7 @@ const ownershipRoutes = safeLoadRoute('ownership', './routes/ownership');
 const assetsRoutes = safeLoadRoute('assets', './routes/assets');
 const searchV5Routes = safeLoadRoute('searchV5', './routes/searchV5');
 const claimsV4Routes = safeLoadRoute('claimsV4', './routes/claimsV4');
+const authRoutes = safeLoadRoute('auth', './routes/auth');
 
 const app = express();
 
@@ -249,6 +250,7 @@ app.get(`${API_BASE_PATH}`, (req, res) => {
     endpoints: {
       health: '/health',
       readiness: '/ready',
+      auth: `${API_BASE_PATH}/auth`,
       evidence: `${API_BASE_PATH}/evidence`,
       verify: `${API_BASE_PATH}/verify`,
       search: `${API_BASE_PATH}/search`,
@@ -283,6 +285,9 @@ if (searchV5Routes) {
 }
 if (claimsV4Routes) {
   app.use(`${API_BASE_PATH}/v4/claims`, authRateLimit, claimsV4Routes);
+}
+if (authRoutes) {
+  app.use(`${API_BASE_PATH}/auth`, authRateLimit, authRoutes);
 }
 
 app.use((req, res, next) => {

@@ -20,6 +20,7 @@ const router = express.Router();
 const authService = require('../services/authService');
 const { authenticate } = require('../middleware/auth');
 const { rateLimiter } = require('../middleware/rateLimit');
+const { prisma } = require('../config/database');
 
 // ═══════════════════════════════════════════════════════
 // Signup
@@ -405,6 +406,62 @@ router.post('/google', rateLimiter({ windowMs: 15 * 60 * 1000, max: 20 }), async
 });
 
 // ═══════════════════════════════════════════════════════
+// Token Refresh
+// ═══════════════════════════════════════════════════════
+
+/**
+ * POST /auth/refresh-token
+ * Exchange a valid refresh token for a new access token
+ */
+router.post('/refresh-token', rateLimiter({ windowMs: 15 * 60 * 1000, max: 30 }), async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({
+        success: false,
+        error: 'Refresh token is required',
+      });
+    }
+
+    // Verify refresh token
+    const decoded = authService.verifyToken(refreshToken);
+
+    if (!decoded || decoded.type !== 'refresh') {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired refresh token',
+      });
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({ where: { id: decoded.sub } });
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        error: 'User not found or account is deactivated',
+      });
+    }
+
+    // Generate new tokens
+    const token = authService.generateToken(user);
+    const newRefreshToken = authService.generateRefreshToken(user);
+
+    return res.status(200).json({
+      success: true,
+      token,
+      refreshToken: newRefreshToken,
+    });
+  } catch (error) {
+    console.error('Refresh token error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Token refresh failed',
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
 // Protected Routes
 // ═══════════════════════════════════════════════════════
 
@@ -415,7 +472,7 @@ router.post('/google', rateLimiter({ windowMs: 15 * 60 * 1000, max: 20 }), async
 router.get('/me', authenticate, async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
-      where: { id: req.user.userId },
+      where: { id: req.user.accountId },
       select: {
         id: true,
         email: true,

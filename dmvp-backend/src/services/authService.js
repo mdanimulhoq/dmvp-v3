@@ -21,10 +21,12 @@ const { prisma } = require('../config/database');
 // Initialize Resend
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// JWT Configuration
+// JWT Configuration — must match middleware/auth.js verification settings
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d';
-const REFRESH_TOKEN_EXPIRES_IN = process.env.REFRESH_TOKEN_EXPIRES_IN || '30d';
+const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
+const REFRESH_TOKEN_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+const JWT_ISSUER = process.env.JWT_ISSUER || 'dmvp-registry';
+const JWT_AUDIENCE = process.env.JWT_AUDIENCE || 'dmvp-api';
 
 // OTP Configuration
 const OTP_LENGTH = 6;
@@ -71,16 +73,25 @@ async function comparePassword(password, hash) {
 
 /**
  * Generate JWT token
+ * Token payload aligns with middleware/auth.js verification:
+ *   - sub: user id
+ *   - email, subscriptionTier, roles as custom claims
+ *   - issuer + audience must match middleware expectations
  */
 function generateToken(user) {
   return jwt.sign(
     {
-      userId: user.id,
+      sub: user.id,
       email: user.email,
       subscriptionTier: user.subscriptionTier,
+      roles: ['user'],
     },
     JWT_SECRET,
-    { expiresIn: JWT_EXPIRES_IN }
+    {
+      expiresIn: JWT_EXPIRES_IN,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    }
   );
 }
 
@@ -89,9 +100,13 @@ function generateToken(user) {
  */
 function generateRefreshToken(user) {
   return jwt.sign(
-    { userId: user.id, type: 'refresh' },
+    { sub: user.id, type: 'refresh' },
     JWT_SECRET,
-    { expiresIn: REFRESH_TOKEN_EXPIRES_IN }
+    {
+      expiresIn: REFRESH_TOKEN_EXPIRES_IN,
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    }
   );
 }
 
@@ -100,7 +115,10 @@ function generateRefreshToken(user) {
  */
 function verifyToken(token) {
   try {
-    return jwt.verify(token, JWT_SECRET);
+    return jwt.verify(token, JWT_SECRET, {
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+    });
   } catch (error) {
     return null;
   }
