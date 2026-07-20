@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: dmvp-v3-1
+    env: node
+    region: oregon
+    plan: free
+    branch: main
+    rootDir: dmvp-backend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_ISSUER
+        value: dmvp-registry
+      - key: JWT_AUDIENCE
+        value: dmvp-api
+      - key: JWT_EXPIRES_IN
+        value: 15m
+      - key: JWT_REFRESH_EXPIRES_IN
+        value: 30d
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
+        value: DMVP <onboarding@resend.dev>
