@@ -260,7 +260,7 @@ fun DeviceTrustTier.isHighAssurance(): Boolean {
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun TrustTierBadgePreview() {
-    DMVPTheme {
+    DmvpTheme {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()

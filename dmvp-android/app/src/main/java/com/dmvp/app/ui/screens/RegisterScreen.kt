@@ -318,7 +318,7 @@ fun RegisterScreen(
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun RegisterScreenPreview() {
-    DMVPTheme {
+    DmvpTheme {
         RegisterScreen(
             onNavigateBack = {},
             onNavigateToEvidenceDetail = {},

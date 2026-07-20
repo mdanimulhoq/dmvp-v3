@@ -18,7 +18,7 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.compose.rememberNavController
 import com.dmvp.app.navigation.NavGraph
 import com.dmvp.app.navigation.Screen
-import com.dmvp.app.ui.theme.DMVPTheme
+import com.dmvp.app.ui.theme.DmvpTheme
 import dagger.hilt.android.AndroidEntryPoint
 import timber.log.Timber
 
@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         requestPermissions()
         setContent {
-            DMVPTheme(darkTheme = true) {
+            DmvpTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

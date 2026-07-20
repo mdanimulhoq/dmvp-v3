@@ -791,7 +791,7 @@ private fun RecoveryFlow(
 @Preview(showBackground = true, backgroundColor = 0xFF1A0033)
 @Composable
 private fun DeviceScreenPreview() {
-    DMVPTheme {
+    DmvpTheme {
         DeviceScreen(
             onNavigateBack = {}
         )
