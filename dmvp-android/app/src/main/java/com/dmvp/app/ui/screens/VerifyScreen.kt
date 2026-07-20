@@ -324,9 +324,8 @@ private fun VerificationLayer(
         modifier = Modifier
             .fillMaxWidth()
             .border(
-                start = 3.dp,
+                width = 3.dp,
                 color = borderColor,
-                shape = RoundedCornerShape(0.dp),
             )
             .background(
                 androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.25f),

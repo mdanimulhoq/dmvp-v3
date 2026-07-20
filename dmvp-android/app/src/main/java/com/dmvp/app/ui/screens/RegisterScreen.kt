@@ -306,5 +306,6 @@ private fun getStepDescription(step: RegistrationStep): String {
         RegistrationStep.SUBMITTING -> "Submitting to registry..."
         RegistrationStep.COMPLETE -> "Registration complete!"
         RegistrationStep.ERROR -> "Error occurred"
+        else -> "Processing..."
     }
 }
