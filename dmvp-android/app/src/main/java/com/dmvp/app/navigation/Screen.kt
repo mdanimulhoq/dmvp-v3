@@ -1,8 +1,33 @@
+/**
+ * app/src/main/java/com/dmvp/app/navigation/Screen.kt
+ *
+ * Navigation route definitions for UDOVP V2.
+ * PR 2: Added auth flow screens (Login, Signup, OTP, EmailVerify).
+ */
+
 package com.dmvp.app.navigation
 
 import android.net.Uri
 
 sealed class Screen(val route: String) {
+
+    // ═══════════════════════════════════════════════════════
+    // Auth Flow
+    // ═══════════════════════════════════════════════════════
+    data object Login : Screen("login")
+    data object Signup : Screen("signup")
+    data object OTP : Screen("otp/{email}") {
+        const val ARG_EMAIL = "email"
+        fun createRoute(email: String): String = "otp/${Uri.encode(email)}"
+    }
+    data object EmailVerify : Screen("email_verify/{email}") {
+        const val ARG_EMAIL = "email"
+        fun createRoute(email: String): String = "email_verify/${Uri.encode(email)}"
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // Main App
+    // ═══════════════════════════════════════════════════════
     data object Home : Screen("home")
     data object Capture : Screen("capture")
     data object Verify : Screen("verify")
