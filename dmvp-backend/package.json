@@ -6,7 +6,7 @@
   "license": "Apache-2.0",
   "main": "src/app.js",
   "engines": {
-    "node": ">=18.0.0",
+    "node": "22.x",
     "npm": ">=9.0.0"
   },
   "scripts": {
