@@ -73,6 +73,17 @@ object RetrofitClient {
     }
 
     /**
+     * Get the ApiService directly (for ViewModels without Context).
+     * Must call init() first or use getInstance(context).
+     */
+    fun getService(): ApiService {
+        if (apiService == null) {
+            init()
+        }
+        return apiService!!
+    }
+
+    /**
      * Store the current device key ID.
      */
     fun setDeviceKeyId(deviceKeyId: String) {
