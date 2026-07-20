@@ -34,7 +34,9 @@ sealed class Screen(val route: String) {
     data object Register : Screen("register")
     data object Search : Screen("search")
     data object Device : Screen("device")
-    data object Assets : Screen("assets") // PR 5 will implement full screen
+    data object Assets : Screen("assets")
+    data object Claims : Screen("claims")
+    data object Account : Screen("account")
 
     /**
      * Compare screen — user selects a reference (registered) media and a

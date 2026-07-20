@@ -41,7 +41,10 @@ import com.dmvp.app.ui.auth.LoginScreen
 import com.dmvp.app.ui.auth.OTPScreen
 import com.dmvp.app.ui.auth.SignupScreen
 import com.dmvp.app.ui.components.DmvpBottomNav
+import com.dmvp.app.ui.screens.AccountScreen
+import com.dmvp.app.ui.screens.AssetsScreen
 import com.dmvp.app.ui.screens.CaptureScreen
+import com.dmvp.app.ui.screens.ClaimsScreen
 import com.dmvp.app.ui.screens.CompareScreen
 import com.dmvp.app.ui.screens.DeviceScreen
 import com.dmvp.app.ui.screens.ErrorScreen
@@ -198,13 +201,13 @@ fun NavGraph(
                         navController.navigate(Screen.Device.route)
                     },
                     onNavigateToAccount = {
-                        // TODO: Navigate to Account screen (PR 5)
+                        navController.navigate(Screen.Account.route)
                     },
                     onNavigateToAssets = {
                         navController.navigate(Screen.Assets.route)
                     },
                     onNavigateToClaims = {
-                        // TODO: Navigate to Claims screen (PR 5)
+                        navController.navigate(Screen.Claims.route)
                     },
                     onNavigateToSearch = {
                         navController.navigate(Screen.Search.route)
@@ -250,8 +253,35 @@ fun NavGraph(
             }
 
             composable(Screen.Assets.route) {
-                // Placeholder — PR 5 will implement full AssetsScreen
-                AssetsPlaceholder()
+                AssetsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToAssetDetail = { assetId ->
+                        // TODO: Navigate to asset detail
+                    },
+                )
+            }
+
+            composable(Screen.Claims.route) {
+                ClaimsScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToClaimDetail = { claimId ->
+                        // TODO: Navigate to claim detail
+                    },
+                )
+            }
+
+            composable(Screen.Account.route) {
+                AccountScreen(
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToDevices = {
+                        navController.navigate(Screen.Device.route)
+                    },
+                    onLogout = {
+                        navController.navigate(Screen.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    },
+                )
             }
 
             // ═══════════════════════════════════════════════════════
@@ -334,40 +364,6 @@ fun NavGraph(
                     },
                 )
             }
-        }
-    }
-}
-
-/**
- * Placeholder for Assets screen — will be fully implemented in PR 5
- */
-@Composable
-private fun AssetsPlaceholder() {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BgBase),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text(
-                text = "\uD83D\uDCDC",
-                fontSize = 48.sp,
-            )
-            Text(
-                text = "Assets",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                color = TextPrimary,
-            )
-            Text(
-                text = "Coming in PR 5",
-                fontSize = 13.sp,
-                color = TextMuted,
-            )
         }
     }
 }
