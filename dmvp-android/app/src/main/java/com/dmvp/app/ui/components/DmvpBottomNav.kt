@@ -58,7 +58,7 @@ fun DmvpBottomNav(
             .fillMaxWidth()
             .height(78.dp)
             .background(BgBase.copy(alpha = 0.92f))
-            .border(top = 1.dp, color = BorderDefault),
+            .border(1.dp, BorderDefault),
         horizontalArrangement = Arrangement.SpaceAround,
         verticalAlignment = Alignment.CenterVertically,
     ) {
