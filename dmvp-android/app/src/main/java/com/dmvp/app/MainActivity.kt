@@ -101,5 +101,5 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun AppContent() {
     val navController = rememberNavController()
-    NavGraph(navController = navController, startDestination = Screen.Home.route)
+    NavGraph(navController = navController, startDestination = Screen.Login.route)
 }
