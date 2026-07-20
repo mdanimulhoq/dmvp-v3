@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UDOVP — Digital Ownership Command</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#08090d;--surface:rgba(14,16,24,.85);--glass:rgba(20,24,38,.65);
+  --border:rgba(255,255,255,.06);--border-hi:rgba(0,255,180,.25);
+  --cyan:#00ffb4;--purple:#a78bfa;--pink:#f472b6;--amber:#fbbf24;--red:#ef4444;
+  --text:#e2e8f0;--muted:#4a5568;--dim:#2d3748;
+  --font:'Outfit',sans-serif;--mono:'Space Mono',monospace;
+  --r:14px;--r-sm:8px;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow:hidden;
+  background-image:
+    radial-gradient(ellipse 80% 60% at 10% 0%,rgba(0,255,180,.04),transparent),
+    radial-gradient(ellipse 60% 50% at 90% 100%,rgba(167,139,250,.05),transparent);
+}
+/* phone frame */
+.phone{width:400px;height:860px;margin:20px auto;border-radius:44px;border:6px solid rgba(255,255,255,.07);
+  background:var(--surface);backdrop-filter:blur(30px);position:relative;overflow:hidden;
+  box-shadow:0 0 80px rgba(0,255,180,.08),0 0 200px rgba(167,139,250,.04),inset 0 1px 0 rgba(255,255,255,.06);
+  display:flex;flex-direction:column}
+.notch{width:130px;height:28px;background:#000;border-radius:0 0 18px 18px;position:absolute;top:0;left:50%;transform:translateX(-50%);z-index:50}
+.statusbar{height:44px;display:flex;justify-content:space-between;align-items:flex-end;padding:0 28px 8px;font:700 11px/1 var(--mono);color:var(--muted);z-index:40;flex-shrink:0}
+/* content area */
+.content{flex:1;overflow-y:auto;padding:8px 22px 90px;scrollbar-width:none}
+.content::-webkit-scrollbar{display:none}
+/* screens */
+.scr{display:none;animation:fadeUp .35s ease}
+.scr.on{display:block}
+.scr-login.on,.scr-splash.on{display:flex;flex-direction:column;justify-content:center;height:100%}
+/* typography */
+h1{font-size:22px;font-weight:800;letter-spacing:-.5px;color:#fff}
+h2{font-size:16px;font-weight:700;color:#fff}
+h3{font-size:10px;font-weight:700;letter-spacing:2.5px;text-transform:uppercase;color:var(--cyan);margin-bottom:12px}
+.sub{font-size:13px;color:var(--muted);line-height:1.5;margin-top:4px}
+/* header */
+.hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:22px}
+.logo{font:900 22px/1 var(--font);background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.logo small{display:block;font:400 9px/1 var(--mono);letter-spacing:3px;-webkit-text-fill-color:var(--muted);margin-top:5px}
+.acct-btn{display:flex;align-items:center;gap:8px;background:rgba(0,255,180,.06);border:1px solid rgba(0,255,180,.15);padding:5px 14px 5px 5px;border-radius:30px;cursor:pointer;transition:.25s}
+.acct-btn:hover{border-color:var(--cyan);box-shadow:0 0 20px rgba(0,255,180,.12)}
+.av{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font:700 10px/1 var(--font);color:#000}
+/* cards */
+.card{background:var(--glass);border:1px solid var(--border);border-radius:var(--r);padding:18px;margin-bottom:16px;backdrop-filter:blur(8px)}
+.card-glow{border-color:var(--border-hi);box-shadow:0 0 30px rgba(0,255,180,.06)}
+/* stats */
+.stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:18px}
+.stat{background:var(--glass);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;position:relative;overflow:hidden}
+.stat::before{content:'';position:absolute;left:0;top:0;width:3px;height:100%;background:var(--cyan)}
+.stat:nth-child(2)::before{background:var(--purple)}
+.stat:nth-child(3)::before{background:var(--amber)}
+.stat:nth-child(4)::before{background:var(--pink)}
+.stat-v{font:800 24px/1 var(--font);color:#fff}
+.stat-l{font:500 10px/1 var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:6px}
+/* grid actions */
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.action{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px 8px;text-align:center;cursor:pointer;transition:.25s}
+.action:hover{border-color:var(--cyan);background:rgba(0,255,180,.05);transform:translateY(-2px)}
+.action .ico{font-size:22px;display:block;margin-bottom:6px}
+.action .lbl{font:600 10px/1 var(--mono);color:var(--text);text-transform:uppercase;letter-spacing:.5px}
+/* inputs */
+.inp{width:100%;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:var(--r-sm);padding:13px 16px;color:#fff;font:400 14px/1 var(--font);outline:none;margin-bottom:12px;transition:.2s}
+.inp:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,255,180,.08)}
+.inp::placeholder{color:var(--dim)}
+.search-bar{display:flex;background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:var(--r);padding:4px;margin-bottom:16px}
+.search-bar input{flex:1;background:none;border:none;color:#fff;padding:10px 14px;outline:none;font:400 14px/1 var(--font)}
+.search-bar button{background:linear-gradient(135deg,var(--cyan),var(--purple));border:none;border-radius:10px;padding:0 20px;font:700 12px/1 var(--mono);color:#000;cursor:pointer;letter-spacing:1px}
+/* buttons */
+.btn{width:100%;padding:15px;border-radius:var(--r);border:none;font:700 13px/1 var(--font);cursor:pointer;transition:.25s;letter-spacing:.5px;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn-p{background:linear-gradient(135deg,var(--cyan),#00b386);color:#000;box-shadow:0 4px 20px rgba(0,255,180,.25)}
+.btn-p:hover{box-shadow:0 6px 30px rgba(0,255,180,.4);transform:translateY(-1px)}
+.btn-s{background:rgba(255,255,255,.04);color:var(--text);border:1px solid var(--border)}
+.btn-d{background:rgba(239,68,68,.08);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.btn-google{background:rgba(255,255,255,.06);color:#fff;border:1px solid var(--border);margin-top:10px}
+/* upload */
+.upload{border:2px dashed rgba(0,255,180,.2);border-radius:var(--r);padding:28px;text-align:center;background:rgba(0,255,180,.02);cursor:pointer;transition:.2s;margin-bottom:14px}
+.upload:hover{border-color:var(--cyan);background:rgba(0,255,180,.05)}
+.upload .ico{font-size:28px;color:var(--cyan);margin-bottom:8px}
+.upload .txt{font-size:12px;color:var(--muted)}
+/* badges */
+.badge{display:inline-block;padding:4px 10px;border-radius:4px;font:700 10px/1 var(--mono);letter-spacing:.5px}
+.b-ok{background:rgba(0,255,180,.1);color:var(--cyan);border:1px solid rgba(0,255,180,.2)}
+.b-warn{background:rgba(251,191,36,.1);color:var(--amber);border:1px solid rgba(251,191,36,.2)}
+.b-err{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.b-info{background:rgba(167,139,250,.1);color:var(--purple);border:1px solid rgba(167,139,250,.2)}
+/* cert rows */
+.row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.06);font-size:13px}
+.row:last-child{border:none;padding-bottom:0}
+.row-k{color:var(--muted)}
+.row-v{color:var(--text);font:500 12px/1 var(--mono);text-align:right}
+/* layers */
+.layer{display:flex;align-items:center;justify-content:space-between;background:rgba(0,0,0,.25);padding:12px 14px;border-radius:var(--r-sm);margin-bottom:8px;border-left:3px solid var(--dim);transition:.2s}
+.layer:hover{background:rgba(0,0,0,.4)}
+.layer-name{font:600 12px/1 var(--font);color:#fff}
+.layer-sub{font:400 11px/1 var(--mono);color:var(--muted);margin-top:3px}
+/* progress */
+.prog{width:100%;height:6px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-top:8px}
+.prog-fill{height:100%;border-radius:3px;background:linear-gradient(90deg,var(--cyan),var(--purple))}
+/* trust circle */
+.trust{width:64px;height:64px;border-radius:50%;border:3px solid rgba(0,255,180,.15);border-top-color:var(--cyan);display:flex;align-items:center;justify-content:center;font:800 16px/1 var(--mono);color:var(--cyan);flex-shrink:0}
+/* asset list */
+.asset{display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.02);padding:12px;border-radius:var(--r-sm);margin-bottom:8px;border:1px solid var(--border);transition:.2s;cursor:pointer}
+.asset:hover{border-color:rgba(0,255,180,.2)}
+.asset-ico{width:42px;height:42px;background:rgba(0,255,180,.06);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0}
+.asset-info{flex:1;min-width:0}
+.asset-name{font:600 13px/1 var(--font);color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.asset-meta{font:400 11px/1 var(--mono);color:var(--muted);margin-top:3px}
+/* switch */
+.sw{position:relative;width:38px;height:20px;flex-shrink:0}
+.sw input{opacity:0;width:0;height:0}
+.sw .sl{position:absolute;inset:0;background:var(--dim);border-radius:20px;cursor:pointer;transition:.3s}
+.sw .sl::before{content:'';position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:.3s}
+.sw input:checked+.sl{background:var(--cyan)}
+.sw input:checked+.sl::before{transform:translateX(18px)}
+/* bottom nav */
+.bnav{position:absolute;bottom:0;left:0;right:0;height:78px;background:rgba(8,9,13,.92);backdrop-filter:blur(20px);border-top:1px solid var(--border);display:flex;justify-content:space-around;align-items:center;padding-bottom:12px;z-index:40}
+.bnav-i{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;padding:8px 12px;border-radius:12px;transition:.2s;color:var(--muted)}
+.bnav-i.on{color:var(--cyan);background:rgba(0,255,180,.08)}
+.bnav-i .ni{font-size:18px}
+.bnav-i .nl{font:600 9px/1 var(--mono);text-transform:uppercase;letter-spacing:1px}
+/* back btn */
+.back{background:none;border:none;color:var(--cyan);font:600 13px/1 var(--font);cursor:pointer;display:flex;align-items:center;gap:4px}
+/* splash */
+.splash-c{display:flex;flex-direction:column;align-items:center;text-align:center}
+.splash-ico{width:88px;height:88px;background:linear-gradient(135deg,var(--cyan),var(--purple));border-radius:24px;display:flex;align-items:center;justify-content:center;font-size:42px;margin-bottom:24px;box-shadow:0 0 60px rgba(0,255,180,.3);animation:pulse 2.5s infinite}
+.splash-t{font:900 32px/1 var(--font);background:linear-gradient(135deg,var(--cyan),var(--purple));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.splash-s{font:400 11px/1 var(--mono);color:var(--muted);letter-spacing:4px;text-transform:uppercase;margin-top:8px}
+/* profile */
+.profile{text-align:center;margin-bottom:22px}
+.av-lg{width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,var(--cyan),var(--purple));display:flex;align-items:center;justify-content:center;font:800 30px/1 var(--font);color:#000;margin:0 auto 12px;box-shadow:0 0 30px rgba(0,255,180,.25)}
+/* OTP */
+.otp-boxes{display:flex;gap:10px;justify-content:center;margin:20px 0}
+.otp-box{width:44px;height:52px;background:rgba(0,0,0,.4);border:2px solid var(--border);border-radius:10px;text-align:center;font:700 22px/52px var(--mono);color:#fff;outline:none;transition:.2s}
+.otp-box:focus{border-color:var(--cyan);box-shadow:0 0 0 3px rgba(0,255,180,.1)}
+/* tabs */
+.tabs{display:flex;gap:4px;background:rgba(0,0,0,.3);border-radius:10px;padding:3px;margin-bottom:16px}
+.tab{flex:1;padding:10px;text-align:center;font:600 11px/1 var(--mono);color:var(--muted);border-radius:8px;cursor:pointer;transition:.2s;letter-spacing:.5px}
+.tab.on{background:rgba(0,255,180,.1);color:var(--cyan)}
+/* timeline */
+.timeline{position:relative;padding-left:20px}
+.timeline::before{content:'';position:absolute;left:6px;top:4px;bottom:4px;width:2px;background:var(--border)}
+.tl-item{position:relative;margin-bottom:16px}
+.tl-item::before{content:'';position:absolute;left:-17px;top:4px;width:10px;height:10px;border-radius:50%;background:var(--cyan);border:2px solid var(--bg)}
+.tl-time{font:400 10px/1 var(--mono);color:var(--muted)}
+.tl-text{font:400 12px/1.4 var(--font);color:var(--text);margin-top:3px}
+/* animations */
+@keyframes fadeUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes pulse{0%,100%{transform:scale(1);box-shadow:0 0 40px rgba(0,255,180,.3)}50%{transform:scale(1.04);box-shadow:0 0 70px rgba(0,255,180,.5)}}
+/* divider */
+.divider{height:1px;background:var(--border);margin:18px 0}
+/* chip */
+.chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;font:500 10px/1 var(--mono);background:rgba(0,255,180,.06);border:1px solid rgba(0,255,180,.15);color:var(--cyan)}
+/* notification dot */
+.dot{width:8px;height:8px;border-radius:50%;background:var(--red);position:absolute;top:6px;right:6px}
+</style>
+</head>
+<body>
+<!-- [APP SHELL] -->
+<div class="phone">
+<div class="notch"></div>
+<div class="statusbar"><span>9:41</span><span style="display:flex;gap:6px;align-items:center"><span style="font-size:9px">5G</span><span style="border:1px solid var(--cyan);padding:1px 4px;border-radius:3px;font-size:8px;color:var(--cyan)">96%</span></span></div>
+
+<div class="content">
+
+<!-- SPLASH -->
+<div class="scr scr-splash on" id="s-splash">
+<div class="splash-c">
+<div class="splash-ico">🛡️</div>
+<div class="splash-t">UDOVP</div>
+<div class="splash-s">Universal Digital Ownership</div>
+<div class="splash-s" style="margin-top:4px;color:var(--cyan)">Verification Platform</div>
+<div style="margin-top:50px;width:220px">
+<button class="btn btn-p" onclick="go('s-login')">Get Started</button>
+</div>
+<div style="margin-top:16px"><span style="font:400 11px/1 var(--mono);color:var(--dim)">TDD v5 • Phase 0–4 Ready</span></div>
+</div>
+</div>
+
+<!-- LOGIN -->
+<div class="scr scr-login" id="s-login" style="padding:0 10px">
+<div style="text-align:center;margin-bottom:36px">
+<div style="font-size:36px;margin-bottom:8px">🔐</div>
+<h1>Welcome Back</h1>
+<p class="sub">Sign in to manage your digital assets</p>
+</div>
+<input class="inp" type="email" placeholder="Email Address">
+<input class="inp" type="password" placeholder="Password">
+<button class="btn btn-p" onclick="go('s-otp')">Sign In</button>
+<button class="btn btn-google" onclick="go('s-dashboard')">🔵 Continue with Google</button>
+<div style="text-align:center;margin-top:20px;font-size:12px;color:var(--muted)">
+Don't have an account? <span style="color:var(--cyan);cursor:pointer;font-weight:700" onclick="go('s-signup')">Sign Up</span>
+</div>
+</div>
+
+<!-- SIGN UP -->
+<div class="scr scr-login" id="s-signup" style="padding:0 10px">
+<div style="text-align:center;margin-bottom:30px">
+<div style="font-size:36px;margin-bottom:8px">✨</div>
+<h1>Create Account</h1>
+<p class="sub">Register to start protecting your assets</p>
+</div>
+<input class="inp" type="text" placeholder="Full Name">
+<input class="inp" type="email" placeholder="Email Address">
+<input class="inp" type="password" placeholder="Password (min 8 chars)">
+<input class="inp" type="password" placeholder="Confirm Password">
+<button class="btn btn-p" onclick="go('s-email-verify')">Create Account</button>
+<button class="btn btn-google" onclick="go('s-dashboard')">🔵 Sign up with Google</button>
+<div style="text-align:center;margin-top:18px;font-size:12px;color:var(--muted)">
+Already have an account? <span style="color:var(--cyan);cursor:pointer;font-weight:700" onclick="go('s-login')">Sign In</span>
+</div>
+</div>
+
+<!-- OTP VERIFY -->
+<div class="scr scr-login" id="s-otp" style="padding:0 10px">
+<div style="text-align:center;margin-bottom:30px">
+<div style="font-size:36px;margin-bottom:8px">📧</div>
+<h1>Verify OTP</h1>
+<p class="sub">6-digit code sent to your email</p>
+</div>
+<div class="otp-boxes">
+<input class="otp-box" maxlength="1" value="4"><input class="otp-box" maxlength="1" value="7"><input class="otp-box" maxlength="1" value="2"><input class="otp-box" maxlength="1"><input class="otp-box" maxlength="1"><input class="otp-box" maxlength="1">
+</div>
+<p style="text-align:center;font-size:12px;color:var(--muted);margin-bottom:20px">Expires in <span style="color:var(--cyan)">09:42</span></p>
+<button class="btn btn-p" onclick="go('s-dashboard')">Verify & Continue</button>
+<div style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
+Didn't receive? <span style="color:var(--cyan);cursor:pointer;font-weight:700">Resend OTP</span>
+</div>
+</div>
+
+<!-- EMAIL VERIFY -->
+<div class="scr scr-login" id="s-email-verify" style="padding:0 10px">
+<div style="text-align:center;margin-bottom:30px">
+<div style="font-size:48px;margin-bottom:12px">📬</div>
+<h1>Check Your Email</h1>
+<p class="sub">We sent a verification link to<br><span style="color:var(--cyan)">mdanimulhoq@gmail.com</span></p>
+</div>
+<div class="card" style="text-align:center">
+<div style="font-size:13px;color:var(--muted);margin-bottom:12px">Click the link in the email to verify your account. The link expires in 24 hours.</div>
+<div class="chip" style="margin:0 auto">✓ Email sent successfully</div>
+</div>
+<button class="btn btn-p" onclick="go('s-login')" style="margin-top:16px">I've Verified — Sign In</button>
+<div style="text-align:center;margin-top:14px;font-size:12px;color:var(--muted)">
+<span style="color:var(--cyan);cursor:pointer;font-weight:700">Resend Verification Email</span>
+</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="scr" id="s-dashboard">
+<div class="hdr">
+<div class="logo">UDOVP<small>UNIVERSAL OWNERSHIP</small></div>
+<div class="acct-btn" onclick="go('s-account')"><div class="av">AH</div><span style="font:600 12px/1 var(--font)">Account</span></div>
+</div>
+<div class="stats">
+<div class="stat"><div class="stat-v">1,204</div><div class="stat-l">Total Assets</div></div>
+<div class="stat"><div class="stat-v" style="color:var(--cyan)">98.6%</div><div class="stat-l">Trust Score</div></div>
+<div class="stat"><div class="stat-v" style="color:var(--amber)">23</div><div class="stat-l">Pending Claims</div></div>
+<div class="stat"><div class="stat-v" style="color:var(--purple)">7</div><div class="stat-l">Devices</div></div>
+</div>
+<h3>Quick Actions</h3>
+<div class="grid3" style="margin-bottom:18px">
+<div class="action" onclick="go('s-register')"><span class="ico">📤</span><span class="lbl">Register</span></div>
+<div class="action" onclick="go('s-verify')"><span class="ico">🛡️</span><span class="lbl">Verify</span></div>
+<div class="action" onclick="go('s-compare')"><span class="ico">⚖️</span><span class="lbl">Compare</span></div>
+<div class="action" onclick="go('s-search')"><span class="ico">🔍</span><span class="lbl">AI Search</span></div>
+<div class="action" onclick="go('s-assets')"><span class="ico">📜</span><span class="lbl">Assets</span></div>
+<div class="action" onclick="go('s-claims')"><span class="ico">⚡</span><span class="lbl">Claims</span></div>
+</div>
+<h3>Blockchain Anchors</h3>
+<div class="card">
+<div class="row"><span class="row-k">Bitcoin (OTS)</span><span class="row-v" style="color:var(--cyan)">Block #805,123 ✓</span></div>
+<div class="row"><span class="row-k">Sigstore Rekor</span><span class="row-v" style="color:var(--cyan)">Log #48291</span></div>
+<div class="row" style="border:none"><span class="row-k">Arbitrum L2</span><span class="row-v" style="color:var(--purple)">Synced</span></div>
+</div>
+<h3>Recent Activity</h3>
+<div class="asset" onclick="go('s-asset-detail')">
+<div class="asset-ico">📄</div>
+<div class="asset-info"><div class="asset-name">Project_Report.pdf</div><div class="asset-meta">uaid_5_t1_01J3Z… • L1 Match</div></div>
+<span class="badge b-ok">Verified</span>
+</div>
+<div class="asset">
+<div class="asset-ico">🎵</div>
+<div class="asset-info"><div class="asset-name">Voice_Over.mp3</div><div class="asset-meta">uaid_5_t1_02K9M… • L8 Signal</div></div>
+<span class="badge b-warn">AI Flag</span>
+</div>
+</div>
+
+<!-- ACCOUNT -->
+<div class="scr" id="s-account">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<div class="profile"><div class="av-lg">AH</div><h2>Animul Hoq</h2><p style="color:var(--cyan);font-size:12px;margin-top:4px">Premium Member • FREE Tier</p></div>
+<div class="card">
+<h3>Profile Details</h3>
+<div class="row"><span class="row-k">User ID</span><span class="row-v">usr_8839-udv</span></div>
+<div class="row"><span class="row-k">Email</span><span style="display:flex;align-items:center;gap:8px"><span class="row-v" style="font-size:11px">ah***@gmail.com</span><label class="sw"><input type="checkbox" checked><span class="sl"></span></label></span></div>
+<div class="row" style="border:none"><span class="row-k">Phone</span><span style="display:flex;align-items:center;gap:8px"><span class="row-v" style="font-size:11px">+8801***</span><label class="sw"><input type="checkbox"><span class="sl"></span></label></span></div>
+</div>
+<div class="card">
+<h3>Security</h3>
+<div class="row"><span class="row-k">Biometric Lock</span><label class="sw"><input type="checkbox" checked><span class="sl"></span></label></div>
+<div class="row"><span class="row-k">Post-Quantum Sign</span><label class="sw"><input type="checkbox" checked><span class="sl"></span></label></div>
+<div class="row" style="border:none"><span class="row-k">Verification Depth</span><span class="row-v" style="color:var(--cyan);cursor:pointer">Standard ›</span></div>
+</div>
+<div class="card">
+<h3>Devices</h3>
+<div class="asset" onclick="go('s-devices')">
+<div class="asset-ico">📱</div>
+<div class="asset-info"><div class="asset-name">Samsung Galaxy S25</div><div class="asset-meta">Tier A • Hardware-backed</div></div>
+<span class="badge b-ok">Active</span>
+</div>
+<div class="asset">
+<div class="asset-ico">💻</div>
+<div class="asset-info"><div class="asset-name">MacBook Pro</div><div class="asset-meta">Tier B • Software</div></div>
+<span class="badge b-info">Linked</span>
+</div>
+</div>
+<div class="card">
+<h3>Privacy & Data</h3>
+<div class="row"><span class="row-k">Auto-strip EXIF/GPS</span><label class="sw"><input type="checkbox" checked><span class="sl"></span></label></div>
+<div class="row"><span class="row-k">Inject C2PA Credentials</span><label class="sw"><input type="checkbox" checked><span class="sl"></span></label></div>
+<div class="row" style="border:none"><span class="row-k">Clear Cache</span><span class="row-v" style="color:var(--red);cursor:pointer">Clear (24 MB) ›</span></div>
+</div>
+<div class="card">
+<h3>Activity Log</h3>
+<div class="timeline">
+<div class="tl-item"><div class="tl-time">Today 10:42 AM</div><div class="tl-text">Registered Project_Report.pdf</div></div>
+<div class="tl-item"><div class="tl-time">Today 09:15 AM</div><div class="tl-text">Verified sunset_photo.jpg — L1 Match</div></div>
+<div class="tl-item"><div class="tl-time">Yesterday 06:30 PM</div><div class="tl-text">Ownership claim filed for asset #01J3Z</div></div>
+<div class="tl-item" style="margin-bottom:0"><div class="tl-time">Jul 18, 2026</div><div class="tl-text">Account created</div></div>
+</div>
+</div>
+<div class="card" style="padding:12px 18px">
+<div class="row" style="cursor:pointer;border:none;padding:4px 0"><span class="row-k">Terms & Conditions</span><span>›</span></div>
+</div>
+<button class="btn btn-d" onclick="go('s-login')" style="margin-top:8px">Logout</button>
+</div>
+
+<!-- REGISTER -->
+<div class="scr" id="s-register">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<h1>Register Asset</h1><p class="sub">Select file type and upload to generate cryptographic proof.</p>
+<div style="margin-top:18px"></div>
+<h3>1. Select Modality</h3>
+<div class="grid3" style="margin-bottom:16px">
+<div class="action" style="border-color:var(--cyan);background:rgba(0,255,180,.06)"><span class="ico">🖼️</span><span class="lbl">Image</span></div>
+<div class="action"><span class="ico">📄</span><span class="lbl">PDF</span></div>
+<div class="action"><span class="ico">💻</span><span class="lbl">Code</span></div>
+<div class="action"><span class="ico">🎥</span><span class="lbl">Video</span></div>
+<div class="action"><span class="ico">🎵</span><span class="lbl">Audio</span></div>
+<div class="action"><span class="ico">📦</span><span class="lbl">3D/Bin</span></div>
+</div>
+<h3>2. Upload File</h3>
+<div class="upload"><div class="ico">⬆️</div><div class="txt">Tap to select or drop file here</div></div>
+<h3>3. C2PA Status</h3>
+<div class="card" style="padding:12px 16px">
+<div class="row" style="border:none"><span class="row-k">Content Credentials</span><span class="chip">Not Detected</span></div>
+</div>
+<button class="btn btn-p" onclick="go('s-reg-result')">Generate Hash & Register</button>
+</div>
+
+<!-- REGISTER RESULT -->
+<div class="scr" id="s-reg-result">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<div style="text-align:center;margin-bottom:20px"><div style="font-size:48px">✅</div><h1 style="margin-top:8px">Registration Complete</h1></div>
+<div class="card card-glow">
+<h3 style="color:var(--cyan)">UAID Generated</h3>
+<div class="row"><span class="row-k">UAID</span><span class="row-v" style="font-size:10px">uaid_5_t1_01J3ZQX...</span></div>
+<div class="row"><span class="row-k">SHA-256</span><span class="row-v" style="font-size:9px">a3f2c8...e91b</span></div>
+<div class="row"><span class="row-k">BLAKE3</span><span class="row-v" style="font-size:9px">7d4e1f...c82a</span></div>
+<div class="row"><span class="row-k">UEE Version</span><span class="row-v" style="color:var(--cyan)">v5.0</span></div>
+<div class="row"><span class="row-k">Signature</span><span class="row-v" style="color:var(--cyan)">Ed25519 + ML-DSA-65</span></div>
+<div class="row" style="border:none"><span class="row-k">Timestamp</span><span class="row-v">T1: RFC3161 ✓</span></div>
+</div>
+<div class="grid2">
+<button class="btn btn-s" onclick="go('s-asset-detail')">View Certificate</button>
+<button class="btn btn-p" onclick="go('s-dashboard')">Done</button>
+</div>
+</div>
+
+<!-- VERIFY -->
+<div class="scr" id="s-verify">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<h1>Verification Engine</h1><p class="sub">10-layer verification from exact hash to ZK proofs.</p>
+<div style="margin-top:18px"></div>
+<h3>Search by UAID</h3>
+<div class="search-bar"><input placeholder="Enter UAID (e.g., uaid_5_t1...)"><button>Check</button></div>
+<h3>Or Upload File</h3>
+<div class="upload" style="padding:18px">
+<div style="display:flex;align-items:center;gap:12px;text-align:left">
+<div class="asset-ico">🖼️</div>
+<div><div class="asset-name">sunset_photo.jpg</div><div class="asset-meta">Uploaded just now</div></div>
+</div>
+</div>
+<h3>Verification Layers</h3>
+<div class="card" style="padding:14px">
+<div class="layer" style="border-left-color:var(--cyan)"><div><div class="layer-name">L1: Exact Integrity</div><div class="layer-sub">SHA-256 + BLAKE3 bit match</div></div><span class="badge b-ok">MATCH</span></div>
+<div class="layer" style="border-left-color:var(--cyan)"><div><div class="layer-name">L2: Structural</div><div class="layer-sub">EXIF + container digest</div></div><span class="badge b-ok">MATCH</span></div>
+<div class="layer" style="border-left-color:var(--cyan)"><div><div class="layer-name">L3: Perceptual</div><div class="layer-sub">PDQ + pHash + dHash</div></div><span class="badge b-ok">MATCH</span></div>
+<div class="layer" style="border-left-color:var(--purple)"><div><div class="layer-name">L4: AI Embedding</div><div class="layer-sub">DINOv3 + SigLIP 2 — cosine 0.98</div></div><span class="badge b-info">SCAN</span></div>
+<div class="layer" style="border-left-color:var(--dim)"><div><div class="layer-name">L5: Cross-modal</div><div class="layer-sub">SigLIP 2 semantic alignment</div></div><span class="badge b-info">SCAN</span></div>
+<div class="layer" style="border-left-color:var(--dim)"><div><div class="layer-name">L8: AI Derivative</div><div class="layer-sub">C2PA + TrustMark + SynthID</div></div><span class="badge b-warn">PENDING</span></div>
+<div class="layer" style="border-left-color:var(--dim)"><div><div class="layer-name">L9: Local Descriptor</div><div class="layer-sub">SuperPoint + LightGlue</div></div><span class="badge b-info">SCAN</span></div>
+<div class="layer" style="border-left-color:var(--dim)"><div><div class="layer-name">L10: ZK Proof</div><div class="layer-sub">Halo2 / SP1 possession proof</div></div><span class="badge" style="opacity:.4">R&D</span></div>
+</div>
+<div class="card" style="text-align:center;padding:14px">
+<div style="display:flex;align-items:center;justify-content:center;gap:14px">
+<div class="trust">96%</div>
+<div style="text-align:left"><div style="font:700 14px/1 var(--font);color:var(--cyan)">High Confidence</div><div style="font:400 11px/1 var(--mono);color:var(--muted);margin-top:4px">6/8 layers matched</div></div>
+</div>
+</div>
+</div>
+
+<!-- COMPARE -->
+<div class="scr" id="s-compare">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<h1>Compare / Similarity</h1><p class="sub">Check if a file is original or an edited derivative.</p>
+<div style="margin-top:18px"></div>
+<h3>1. Original (Registered)</h3>
+<input class="inp" placeholder="Enter Registered UAID">
+<div class="upload" style="padding:14px"><div class="txt">Or upload original file</div></div>
+<h3>2. File to Check</h3>
+<div class="upload" style="padding:14px"><div class="ico" style="font-size:20px">📁</div><div class="txt">Upload suspicious/edited file</div></div>
+<button class="btn btn-p">Run Comparison</button>
+<div style="margin-top:18px"></div>
+<div class="card card-glow">
+<h3 style="color:var(--cyan)">Comparison Report</h3>
+<div style="margin-bottom:14px">
+<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Visual Match (L3/L4)</span><span style="color:var(--cyan)">92.5%</span></div>
+<div class="prog"><div class="prog-fill" style="width:92.5%"></div></div>
+</div>
+<div style="margin-bottom:14px">
+<div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px"><span>Structural (L2)</span><span style="color:var(--cyan)">78.1%</span></div>
+<div class="prog"><div class="prog-fill" style="width:78.1%"></div></div>
+</div>
+<div class="row"><span class="row-k">Verdict</span><span class="row-v" style="color:var(--amber)">Edited Derivative</span></div>
+<div class="row"><span class="row-k">AI Signals</span><span class="row-v" style="color:var(--cyan)">Brightness +10%, Cropped</span></div>
+<div class="row"><span class="row-k">C2PA</span><span class="row-v">Absent</span></div>
+<div class="row" style="border:none"><span class="row-k">Source</span><span class="row-v" style="color:var(--purple);cursor:pointer;text-decoration:underline">View Original ›</span></div>
+</div>
+</div>
+
+<!-- AI SEARCH -->
+<div class="scr" id="s-search">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<h1>AI Vector Search</h1><p class="sub">Cross-modal search via SigLIP 2 + pgvector.</p>
+<div style="margin-top:18px"></div>
+<div class="tabs">
+<div class="tab on">Text → Image</div>
+<div class="tab">Image → Image</div>
+<div class="tab">Audio</div>
+</div>
+<div class="search-bar"><input placeholder="e.g., 'sunset over mountains'"><button>Search</button></div>
+<h3>Results — 3 Matches</h3>
+<div class="asset"><div class="asset-ico">🏔️</div><div class="asset-info"><div class="asset-name">mountain_view.raw</div><div class="asset-meta">SigLIP 2 Score: 0.98</div></div><span class="badge b-ok">Original</span></div>
+<div class="asset"><div class="asset-ico">🌅</div><div class="asset-info"><div class="asset-name">sunset_beach.jpg</div><div class="asset-meta">SigLIP 2 Score: 0.91</div></div><span class="badge b-ok">Original</span></div>
+<div class="asset"><div class="asset-ico">🖼️</div><div class="asset-info"><div class="asset-name">landscape_edit.png</div><div class="asset-meta">SigLIP 2 Score: 0.84</div></div><span class="badge b-warn">Derivative</span></div>
+</div>
+
+<!-- ASSETS LIST -->
+<div class="scr" id="s-assets">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<h1>My Assets</h1><p class="sub">Ownership certificates and registered files.</p>
+<div style="margin-top:18px"></div>
+<div class="search-bar"><input placeholder="Search by UAID or name..."><button>Go</button></div>
+<div class="asset" onclick="go('s-asset-detail')"><div class="asset-ico">📄</div><div class="asset-info"><div class="asset-name">Project_Report.pdf</div><div class="asset-meta">uaid_5_t1_01J3Z… • Jul 20</div></div><span class="badge b-ok">UEE v5</span></div>
+<div class="asset"><div class="asset-ico">🖼️</div><div class="asset-info"><div class="asset-name">sunset_photo.jpg</div><div class="asset-meta">uaid_5_t1_02K9M… • Jul 19</div></div><span class="badge b-ok">UEE v5</span></div>
+<div class="asset"><div class="asset-ico">🎵</div><div class="asset-info"><div class="asset-name">Voice_Over.mp3</div><div class="asset-meta">uaid_5_t1_03L7N… • Jul 18</div></div><span class="badge b-warn">AI Flag</span></div>
+<div class="asset"><div class="asset-ico">💻</div><div class="asset-info"><div class="asset-name">main.py</div><div class="asset-meta">uaid_5_t1_04M2P… • Jul 18</div></div><span class="badge b-ok">UEE v5</span></div>
+</div>
+
+<!-- ASSET DETAIL / CERTIFICATE -->
+<div class="scr" id="s-asset-detail">
+<div class="hdr"><button class="back" onclick="go('s-assets')">← Back</button></div>
+<div style="text-align:center;margin-bottom:16px"><div style="font-size:36px">🏆</div><h2 style="margin-top:6px">Ownership Certificate</h2><span class="chip" style="margin-top:8px">UEE v5.0 Valid</span></div>
+<div class="card card-glow">
+<div class="row"><span class="row-k">UAID</span><span class="row-v" style="font-size:10px">uaid_5_t1_01J3ZQX...</span></div>
+<div class="row"><span class="row-k">Asset Type</span><span class="row-v">PDF Document</span></div>
+<div class="row"><span class="row-k">SHA-256</span><span class="row-v" style="font-size:9px">a3f2c8d1...e91b</span></div>
+<div class="row"><span class="row-k">BLAKE3</span><span class="row-v" style="font-size:9px">7d4e1f2a...c82a</span></div>
+<div class="row"><span class="row-k">C2PA</span><span class="row-v">Absent</span></div>
+<div class="row"><span class="row-k">Classical Sig</span><span class="row-v" style="color:var(--cyan)">Ed25519 ✓</span></div>
+<div class="row"><span class="row-k">PQ Sig</span><span class="row-v" style="color:var(--cyan)">ML-DSA-65 ✓</span></div>
+<div class="row"><span class="row-k">Issued</span><span class="row-v">Jul 20, 2026</span></div>
+<div class="row" style="border:none"><span class="row-k">Valid Until</span><span class="row-v">Jul 20, 2027</span></div>
+</div>
+<h3>Timestamp Anchors</h3>
+<div class="card" style="padding:12px 16px">
+<div class="row"><span class="row-k">T0: Server</span><span class="row-v" style="color:var(--cyan)">✓</span></div>
+<div class="row"><span class="row-k">T1: RFC 3161</span><span class="row-v" style="color:var(--cyan)">Entrust TSA</span></div>
+<div class="row"><span class="row-k">T2a: Rekor</span><span class="row-v" style="color:var(--cyan)">Log #48291</span></div>
+<div class="row" style="border:none"><span class="row-k">T2b: Bitcoin</span><span class="row-v" style="color:var(--cyan)">Block #805,123</span></div>
+</div>
+<div class="grid2" style="margin-top:12px">
+<button class="btn btn-s">📤 Share</button>
+<button class="btn btn-s">📥 Export</button>
+</div>
+</div>
+
+<!-- CLAIMS -->
+<div class="scr" id="s-claims">
+<div class="hdr"><button class="back" onclick="go('s-dashboard')">← Back</button></div>
+<h1>Ownership Claims</h1><p class="sub">Manage claims, disputes, and transfers.</p>
+<div style="margin-top:18px"></div>
+<div class="grid2" style="margin-bottom:16px">
+<div class="action" onclick="go('s-new-claim')"><span class="ico">⚡</span><span class="lbl">New Claim</span></div>
+<div class="action"><span class="ico">🔄</span><span class="lbl">Transfer</span></div>
+</div>
+<h3>Active Claims</h3>
+<div class="card" style="padding:14px">
+<div class="row"><span class="row-k">Claim #CLM-001</span><span class="badge b-warn">Pending</span></div>
+<div style="font-size:12px;color:var(--muted);margin-top:4px">Asset: uaid_5_t1_01J3Z…</div>
+<div style="font-size:12px;color:var(--muted);margin-top:2px">Type: Original Creator</div>
+<div style="font-size:11px;color:var(--dim);margin-top:6px">Filed Jul 19, 2026</div>
+</div>
+<div class="card" style="padding:14px">
+<div class="row"><span class="row-k">Claim #CLM-002</span><span class="badge b-ok">Accepted</span></div>
+<div style="font-size:12px;color:var(--muted);margin-top:4px">Asset: uaid_5_t1_02K9M…</div>
+<div style="font-size:12px;color:var(--muted);margin-top:2px">Type: Rightful Owner</div>
+<div style="font-size:11px;color:var(--dim);margin-top:6px">Accepted Jul 18, 2026</div>
+</div>
+</div>
+
+<!-- NEW CLAIM -->
+<div class="scr" id="s-new-claim">
+<div class="hdr"><button class="back" onclick="go('s-claims')">← Back</button></div>
+<h1>File Ownership Claim</h1><p class="sub">Submit a cryptographic ownership claim for a registered asset.</p>
+<div style="margin-top:18px"></div>
+<h3>Asset UAID</h3>
+<input class="inp" placeholder="Enter UAID of the asset">
+<h3>Claim Type</h3>
+<div class="tabs" style="margin-bottom:16px">
+<div class="tab on">Original Creator</div>
+<div class="tab">Rightful Owner</div>
+<div class="tab">Custodian</div>
+</div>
+<h3>Claim Statement</h3>
+<textarea class="inp" rows="3" placeholder="Describe your ownership claim..." style="resize:none;margin-bottom:14px"></textarea>
+<button class="btn btn-p">Submit Claim (Signed)</button>
+</div>
+
+<!-- DEVICES -->
+<div class="scr" id="s-devices">
+<div class="hdr"><button class="back" onclick="go('s-account')">← Back</button></div>
+<h1>Device Management</h1><p class="sub">Registered devices and trust tiers.</p>
+<div style="margin-top:18px"></div>
+<div class="card card-glow" style="padding:14px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+<div class="asset-ico">📱</div>
+<div><div class="asset-name">Samsung Galaxy S25</div><div class="asset-meta">Android 16 • DMVP v3.0</div></div>
+</div>
+<div class="row"><span class="row-k">Trust Tier</span><span class="badge b-ok">Tier A</span></div>
+<div class="row"><span class="row-k">Attestation</span><span class="row-v" style="color:var(--cyan)">Hardware-backed ✓</span></div>
+<div class="row"><span class="row-k">Key Algorithm</span><span class="row-v">SHA256withECDSA</span></div>
+<div class="row"><span class="row-k">PQ Key</span><span class="row-v" style="color:var(--cyan)">ML-DSA-65 ✓</span></div>
+<div class="row"><span class="row-k">Last Seen</span><span class="row-v">Just now</span></div>
+<div class="row" style="border:none"><span class="row-k">Registered</span><span class="row-v">Jul 18, 2026</span></div>
+</div>
+<div class="card" style="padding:14px">
+<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+<div class="asset-ico">💻</div>
+<div><div class="asset-name">MacBook Pro</div><div class="asset-meta">macOS 16 • DMVP CLI</div></div>
+</div>
+<div class="row"><span class="row-k">Trust Tier</span><span class="badge b-info">Tier B</span></div>
+<div class="row"><span class="row-k">Attestation</span><span class="row-v">Software</span></div>
+<div class="row" style="border:none"><span class="row-k">Last Seen</span><span class="row-v">2 hours ago</span></div>
+</div>
+</div>
+
+</div><!-- /content -->
+
+<!-- BOTTOM NAV -->
+<div class="bnav">
+<div class="bnav-i on" onclick="go('s-dashboard')"><span class="ni">🏠</span><span class="nl">Home</span></div>
+<div class="bnav-i" onclick="go('s-register')"><span class="ni">➕</span><span class="nl">Register</span></div>
+<div class="bnav-i" onclick="go('s-verify')"><span class="ni">🛡️</span><span class="nl">Verify</span></div>
+<div class="bnav-i" onclick="go('s-compare')"><span class="ni">⚖️</span><span class="nl">Compare</span></div>
+<div class="bnav-i" onclick="go('s-assets')"><span class="ni">📜</span><span class="nl">Assets</span></div>
+</div>
+</div><!-- /phone -->
+<script>
+// [NAVIGATION LOGIC]
+function go(id){
+  document.querySelectorAll('.scr').forEach(s=>{s.classList.remove('on');s.style.display=''});
+  const el=document.getElementById(id);
+  if(id==='s-login'||id==='s-signup'||id==='s-otp'||id==='s-email-verify'||id==='s-splash'){
+    el.style.display='flex';
+  } else {
+    el.style.display='block';
+  }
+  el.classList.add('on');
+  document.querySelector('.content').scrollTop=0;
+  // nav highlight
+  document.querySelectorAll('.bnav-i').forEach(n=>n.classList.remove('on'));
+  const map={'s-dashboard':0,'s-register':1,'s-verify':2,'s-compare':3,'s-assets':4};
+  if(map[id]!==undefined) document.querySelectorAll('.bnav-i')[map[id]].classList.add('on');
+}
+</script>
+</body>
+</html>
