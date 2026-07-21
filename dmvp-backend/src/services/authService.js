@@ -216,96 +216,128 @@ async function sendVerificationEmail(email, token) {
  * Sign up with email and password
  */
 async function signup(email, password, name) {
-  // Check if user already exists
-  const existingUser = await prisma.user.findUnique({ where: { email } });
-  if (existingUser) {
-    throw new Error('Email already registered');
+  try {
+    // Check if user already exists
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      const error = new Error('Email already registered');
+      error.code = 'EMAIL_EXISTS';
+      throw error;
+    }
+
+    // Hash password
+    const passwordHash = await hashPassword(password);
+
+    // Generate verification token
+    const emailVerificationToken = generateVerificationToken();
+
+    // Create user
+    const user = await prisma.user.create({
+      data: {
+        email,
+        passwordHash,
+        name,
+        emailVerificationToken,
+        emailVerificationSentAt: new Date(),
+      },
+    });
+
+    console.log(`[AUTH] User created: ${user.id} (${email})`);
+
+    // Send verification email (non-blocking - don't fail signup if email fails)
+    try {
+      await sendVerificationEmail(email, emailVerificationToken);
+      console.log(`[AUTH] Verification email sent to ${email}`);
+    } catch (emailError) {
+      console.error(`[AUTH] Failed to send verification email to ${email}:`, emailError.message);
+      // Don't throw - user is created, they can request resend
+    }
+
+    // Generate tokens
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        emailVerified: user.emailVerified,
+        subscriptionTier: user.subscriptionTier,
+      },
+      token,
+      refreshToken,
+    };
+  } catch (error) {
+    console.error('[AUTH] Signup error:', error);
+    throw error;
   }
-
-  // Hash password
-  const passwordHash = await hashPassword(password);
-
-  // Generate verification token
-  const emailVerificationToken = generateVerificationToken();
-
-  // Create user
-  const user = await prisma.user.create({
-    data: {
-      email,
-      passwordHash,
-      name,
-      emailVerificationToken,
-      emailVerificationSentAt: new Date(),
-    },
-  });
-
-  // Send verification email
-  await sendVerificationEmail(email, emailVerificationToken);
-
-  // Generate tokens
-  const token = generateToken(user);
-  const refreshToken = generateRefreshToken(user);
-
-  return {
-    user: {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      emailVerified: user.emailVerified,
-      subscriptionTier: user.subscriptionTier,
-    },
-    token,
-    refreshToken,
-  };
 }
 
 /**
  * Sign in with email and password
  */
 async function signin(email, password) {
-  // Find user
-  const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) {
-    throw new Error('Invalid email or password');
+  try {
+    // Find user
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      console.log(`[AUTH] Signin failed: User not found for email ${email}`);
+      throw new Error('Invalid email or password');
+    }
+
+    if (!user.isActive) {
+      console.log(`[AUTH] Signin failed: Account deactivated for ${email}`);
+      throw new Error('Account is deactivated');
+    }
+
+    // Check if user has password (might be Google-only user)
+    if (!user.passwordHash) {
+      console.log(`[AUTH] Signin failed: No password for ${email} (Google-only user)`);
+      throw new Error('Please sign in with Google');
+    }
+
+    // Verify password
+    const isValid = await comparePassword(password, user.passwordHash);
+    if (!isValid) {
+      console.log(`[AUTH] Signin failed: Invalid password for ${email}`);
+      throw new Error('Invalid email or password');
+    }
+
+    console.log(`[AUTH] Signin successful for ${email}`);
+
+    // Generate OTP for 2FA (optional - if user wants extra security)
+    const otp = generateOTP();
+    const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
+
+    // Update user with OTP
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        otpCode: otp,
+        otpExpiresAt,
+        otpAttempts: 0,
+      },
+    });
+
+    // Send OTP email (non-blocking - don't fail signin if email fails)
+    try {
+      await sendOTPEmail(email, otp);
+      console.log(`[AUTH] OTP sent to ${email}`);
+    } catch (emailError) {
+      console.error(`[AUTH] Failed to send OTP to ${email}:`, emailError.message);
+      // Don't throw - user can request resend
+    }
+
+    return {
+      message: 'OTP sent to your email',
+      email: user.email,
+      requiresOTP: true,
+    };
+  } catch (error) {
+    console.error('[AUTH] Signin error:', error);
+    throw error;
   }
-
-  if (!user.isActive) {
-    throw new Error('Account is deactivated');
-  }
-
-  // Check if user has password (might be Google-only user)
-  if (!user.passwordHash) {
-    throw new Error('Please sign in with Google');
-  }
-
-  // Verify password
-  const isValid = await comparePassword(password, user.passwordHash);
-  if (!isValid) {
-    throw new Error('Invalid email or password');
-  }
-
-  // Generate OTP for 2FA (optional - if user wants extra security)
-  const otp = generateOTP();
-  const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
-
-  // Update user with OTP
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      otpCode: otp,
-      otpExpiresAt,
-      otpAttempts: 0,
-    },
-  });
-
-  // Send OTP email
-  await sendOTPEmail(email, otp);
-
-  return {
-    message: 'OTP sent to your email',
-    email: user.email,
-    requiresOTP: true,
-  };
 }
 
 /**

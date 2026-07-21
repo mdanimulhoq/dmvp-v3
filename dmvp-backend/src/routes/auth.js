@@ -79,6 +79,7 @@ router.post('/signup', rateLimiter({ windowMs: 15 * 60 * 1000, max: 10 }), async
     return res.status(500).json({
       success: false,
       error: 'Signup failed. Please try again.',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 });
@@ -138,6 +139,7 @@ router.post('/signin', rateLimiter({ windowMs: 15 * 60 * 1000, max: 20 }), async
     return res.status(500).json({
       success: false,
       error: 'Signin failed. Please try again.',
+      details: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 });
