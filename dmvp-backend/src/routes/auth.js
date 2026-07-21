@@ -440,6 +440,10 @@ router.post('/test-email', async (req, res) => {
 
     const fromAddress = process.env.EMAIL_FROM || 'DMVP <onboarding@resend.dev>';
 
+    console.log(`[TEST-EMAIL] Attempting to send test email to ${email}`);
+    console.log(`[TEST-EMAIL] From: ${fromAddress}`);
+    console.log(`[TEST-EMAIL] RESEND_API_KEY: ${process.env.RESEND_API_KEY.substring(0, 10)}...`);
+
     const { data, error } = await resend.emails.send({
       from: fromAddress,
       to: email,
@@ -463,7 +467,8 @@ router.post('/test-email', async (req, res) => {
       return res.status(500).json({
         success: false,
         error: 'Failed to send email',
-        details: error.message,
+        details: error.message || JSON.stringify(error),
+        errorCode: error.statusCode || error.name,
       });
     }
 
@@ -473,6 +478,7 @@ router.post('/test-email', async (req, res) => {
       success: true,
       message: `Test email sent to ${email}`,
       emailId: data.id,
+      note: 'Check your inbox (and spam folder). If you don\'t see it, verify your email address in Resend dashboard.',
     });
   } catch (error) {
     console.error('[TEST-EMAIL] Error:', error);
@@ -480,6 +486,7 @@ router.post('/test-email', async (req, res) => {
       success: false,
       error: 'Test email failed',
       details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
     });
   }
 });

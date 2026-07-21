@@ -133,8 +133,10 @@ function verifyToken(token) {
  */
 async function sendOTPEmail(email, otp) {
   try {
+    console.log(`[EMAIL] Sending OTP to ${email}`);
+    
     const { data, error } = await resend.emails.send({
-      from: 'DMVP <onboarding@resend.dev>', // Change to your verified domain
+      from: process.env.EMAIL_FROM || 'DMVP <onboarding@resend.dev>',
       to: email,
       subject: 'DMVP - Your Verification Code',
       html: `
@@ -153,14 +155,15 @@ async function sendOTPEmail(email, otp) {
     });
 
     if (error) {
-      console.error('Resend error:', error);
-      throw new Error('Failed to send OTP email');
+      console.error('[EMAIL] Resend API error:', error);
+      throw new Error(`Failed to send OTP email: ${error.message || JSON.stringify(error)}`);
     }
 
+    console.log(`[EMAIL] OTP sent successfully to ${email}, id: ${data.id}`);
     return data;
   } catch (error) {
-    console.error('Send OTP email error:', error);
-    throw new Error('Failed to send OTP email');
+    console.error('[EMAIL] Send OTP email error:', error);
+    throw new Error(`Failed to send OTP email: ${error.message}`);
   }
 }
 
@@ -171,8 +174,10 @@ async function sendVerificationEmail(email, token) {
   const verificationUrl = `${process.env.APP_URL || 'https://dmvp-v3-1.onrender.com'}/api/v1/auth/verify-email?token=${token}`;
 
   try {
+    console.log(`[EMAIL] Sending verification email to ${email}`);
+    
     const { data, error } = await resend.emails.send({
-      from: 'DMVP <onboarding@resend.dev>',
+      from: process.env.EMAIL_FROM || 'DMVP <onboarding@resend.dev>',
       to: email,
       subject: 'DMVP - Verify Your Email',
       html: `
@@ -197,14 +202,15 @@ async function sendVerificationEmail(email, token) {
     });
 
     if (error) {
-      console.error('Resend error:', error);
-      throw new Error('Failed to send verification email');
+      console.error('[EMAIL] Resend API error:', error);
+      throw new Error(`Failed to send verification email: ${error.message || JSON.stringify(error)}`);
     }
 
+    console.log(`[EMAIL] Verification email sent successfully to ${email}, id: ${data.id}`);
     return data;
   } catch (error) {
-    console.error('Send verification email error:', error);
-    throw new Error('Failed to send verification email');
+    console.error('[EMAIL] Send verification email error:', error);
+    throw new Error(`Failed to send verification email: ${error.message}`);
   }
 }
 
