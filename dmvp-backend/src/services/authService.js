@@ -228,30 +228,21 @@ async function signup(email, password, name) {
     // Hash password
     const passwordHash = await hashPassword(password);
 
-    // Generate verification token
-    const emailVerificationToken = generateVerificationToken();
-
-    // Create user
+    // Create user (auto-verified for now since email service is not configured)
     const user = await prisma.user.create({
       data: {
         email,
         passwordHash,
         name,
-        emailVerificationToken,
-        emailVerificationSentAt: new Date(),
+        emailVerified: true, // TEMP: Auto-verify for testing
       },
     });
 
-    console.log(`[AUTH] User created: ${user.id} (${email})`);
+    console.log(`[AUTH] User created: ${user.id} (${email}) - Auto-verified (email service not configured)`);
 
-    // Send verification email (non-blocking - don't fail signup if email fails)
-    try {
-      await sendVerificationEmail(email, emailVerificationToken);
-      console.log(`[AUTH] Verification email sent to ${email}`);
-    } catch (emailError) {
-      console.error(`[AUTH] Failed to send verification email to ${email}:`, emailError.message);
-      // Don't throw - user is created, they can request resend
-    }
+    // TODO: Enable email verification when Resend is configured
+    // const emailVerificationToken = generateVerificationToken();
+    // await sendVerificationEmail(email, emailVerificationToken);
 
     // Generate tokens
     const token = generateToken(user);
@@ -306,11 +297,12 @@ async function signin(email, password) {
 
     console.log(`[AUTH] Signin successful for ${email}`);
 
-    // Generate OTP for 2FA (optional - if user wants extra security)
+    // TODO: Enable OTP when email service is configured
+    // For now, directly return tokens without OTP
+    /*
     const otp = generateOTP();
     const otpExpiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
-    // Update user with OTP
     await prisma.user.update({
       where: { id: user.id },
       data: {
@@ -320,19 +312,40 @@ async function signin(email, password) {
       },
     });
 
-    // Send OTP email (non-blocking - don't fail signin if email fails)
     try {
       await sendOTPEmail(email, otp);
       console.log(`[AUTH] OTP sent to ${email}`);
     } catch (emailError) {
       console.error(`[AUTH] Failed to send OTP to ${email}:`, emailError.message);
-      // Don't throw - user can request resend
     }
 
     return {
       message: 'OTP sent to your email',
       email: user.email,
       requiresOTP: true,
+    };
+    */
+
+    // TEMP: Direct login without OTP
+    const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt: new Date() },
+    });
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        emailVerified: user.emailVerified,
+        subscriptionTier: user.subscriptionTier,
+      },
+      token,
+      refreshToken,
+      message: 'Signin successful',
     };
   } catch (error) {
     console.error('[AUTH] Signin error:', error);
