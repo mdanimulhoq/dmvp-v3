@@ -104,15 +104,6 @@ fun LoginScreen(
             onClick = { viewModel.signIn(email, password) },
             enabled = !uiState.isLoading && email.isNotBlank() && password.isNotBlank(),
         )
-        Spacer(Modifier.height(12.dp))
-
-        // Google Sign-In button (secondary)
-        DmvpButton(
-            text = "\uD83D\uDD35 Continue with Google",
-            onClick = { viewModel.signInWithGoogle() },
-            variant = ButtonVariant.SECONDARY,
-            enabled = !uiState.isLoading,
-        )
 
         // Error message
         if (uiState.error != null) {

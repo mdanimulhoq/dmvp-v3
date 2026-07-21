@@ -151,15 +151,6 @@ fun SignupScreen(
                     && password.isNotBlank()
                     && confirmPassword.isNotBlank(),
         )
-        Spacer(Modifier.height(12.dp))
-
-        // Google Sign-Up button
-        DmvpButton(
-            text = "\uD83D\uDD35 Sign up with Google",
-            onClick = { viewModel.signInWithGoogle() },
-            variant = ButtonVariant.SECONDARY,
-            enabled = !uiState.isLoading,
-        )
 
         Spacer(Modifier.weight(1f))
 
