@@ -408,6 +408,83 @@ router.post('/google', rateLimiter({ windowMs: 15 * 60 * 1000, max: 20 }), async
 });
 
 // ═══════════════════════════════════════════════════════
+// Email Test Endpoint (for debugging)
+// ═══════════════════════════════════════════════════════
+
+/**
+ * POST /auth/test-email
+ * Send a test email to verify Resend is working
+ * Body: { email: "test@example.com" }
+ */
+router.post('/test-email', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        error: 'Email is required',
+      });
+    }
+
+    // Check if Resend is configured
+    if (!process.env.RESEND_API_KEY) {
+      return res.status(500).json({
+        success: false,
+        error: 'RESEND_API_KEY not configured',
+      });
+    }
+
+    const { Resend } = require('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const fromAddress = process.env.EMAIL_FROM || 'DMVP <onboarding@resend.dev>';
+
+    const { data, error } = await resend.emails.send({
+      from: fromAddress,
+      to: email,
+      subject: 'DMVP - Test Email',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #00FFB4;">✓ Email System Working!</h2>
+          <p>This is a test email from DMVP backend.</p>
+          <p>If you received this, your Resend configuration is correct.</p>
+          <hr style="border: 1px solid #eee; margin: 20px 0;">
+          <p style="color: #666; font-size: 12px;">
+            Sent from: ${fromAddress}<br>
+            Timestamp: ${new Date().toISOString()}
+          </p>
+        </div>
+      `,
+    });
+
+    if (error) {
+      console.error('[TEST-EMAIL] Resend error:', error);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to send email',
+        details: error.message,
+      });
+    }
+
+    console.log(`[TEST-EMAIL] Test email sent to ${email}, id: ${data.id}`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Test email sent to ${email}`,
+      emailId: data.id,
+    });
+  } catch (error) {
+    console.error('[TEST-EMAIL] Error:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Test email failed',
+      details: error.message,
+    });
+  }
+});
+
+// ═══════════════════════════════════════════════════════
 // Token Refresh
 // ═══════════════════════════════════════════════════════
 
