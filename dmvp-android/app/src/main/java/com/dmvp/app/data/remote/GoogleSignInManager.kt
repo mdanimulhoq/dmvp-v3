@@ -68,11 +68,7 @@ class GoogleSignInManager(private val context: Context) {
             Log.e(TAG, "Google Sign-In failed: ${e.message}", e)
             GoogleSignInResult(
                 success = false,
-                errorMessage = when (e.type) {
-                    GetCredentialException.TYPE_NO_CREDENTIAL_AVAILABLE -> "No Google account available"
-                    GetCredentialException.TYPE_USER_CANCELED -> "Sign-in cancelled by user"
-                    else -> "Sign-in failed: ${e.message}"
-                }
+                errorMessage = "Sign-in failed: ${e.message}"
             )
         } catch (e: Exception) {
             Log.e(TAG, "Unexpected error during Google Sign-In", e)

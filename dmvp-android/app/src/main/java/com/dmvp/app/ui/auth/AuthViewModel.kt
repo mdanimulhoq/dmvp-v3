@@ -21,6 +21,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/**
+ * UI State for authentication screens
+ */
+data class AuthUiState(
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val message: String? = null,
+    val requiresOTP: Boolean = false,
+    val loginSuccess: Boolean = false,
+    val signupSuccess: Boolean = false,
+    val user: AuthModels.UserResponse? = null,
+    val token: String? = null,
+    val refreshToken: String? = null,
+)
+
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
 
     private val apiService = RetrofitClient.getService()
